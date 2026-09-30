@@ -1,0 +1,2602 @@
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/.env.example cur/tene-mashkaot/.env.example
+--- cmp/b/tene-mashkaot/.env.example	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/.env.example	2026-09-30 13:48:27.000000000 +0000
+@@ -20,7 +20,8 @@
+ RESEND_API_KEY=
+ # Where new orders / inquiries are sent (comma separated for several)
+ ORDERS_TO_EMAIL=
+-# Must be on a domain verified in Resend, e.g. "תנא משקאות <orders@tene-mashkaot.co.il>"
++# Optional. Without a verified domain leave empty: mail goes from onboarding@resend.dev, and only to the
++# e-mail address that owns the Resend account – so ORDERS_TO_EMAIL must be that address until a domain exists.
+ ORDERS_FROM_EMAIL=
+ 
+ # ── Bot protection (Cloudflare Turnstile) ──────────────────────────
+@@ -30,3 +31,30 @@
+ # ── Rate limiting (Upstash Redis) ──────────────────────────────────
+ UPSTASH_REDIS_REST_URL=
+ UPSTASH_REDIS_REST_TOKEN=
++# ── Payments & receipts (Morning / Green Invoice – API requires the "Best" plan) ──
++# Morning → My account → Developer tools → API keys. Use sandbox keys in the Preview environment.
++MORNING_API_KEY_ID=
++MORNING_API_KEY_SECRET=
++# production | sandbox
++MORNING_ENV=production
++# 320 = חשבונית מס/קבלה (עוסק מורשה) · 400 = קבלה (עוסק פטור)
++MORNING_DOCUMENT_TYPE=320
++# 1 = site prices include VAT (default) · 0 = before VAT · 2 = VAT exempt
++MORNING_VAT_TYPE=1
++# Optional: the clearing plugin id, only if the Morning account has more than one
++MORNING_PAYMENT_PLUGIN_ID=
++# Random string (openssl rand -hex 32): authenticates Morning's payment notifications
++MORNING_WEBHOOK_SECRET=
++# Random string shared with the Sanity "order paid → receipt" webhook
++SANITY_ORDER_WEBHOOK_SECRET=
++# ── WhatsApp Cloud API alerts to the store (integrations/whatsapp/TEMPLATES.md) ──
++WHATSAPP_ACCESS_TOKEN=
++WHATSAPP_PHONE_NUMBER_ID=
++WHATSAPP_BUSINESS_ACCOUNT_ID=
++# Numbers that receive alerts, comma separated (e.g. 0535467863)
++WHATSAPP_ALERT_TO=
++WHATSAPP_GRAPH_VERSION=v23.0
++WHATSAPP_TEMPLATE_LANG=he
++# ── Google Sheets sync (integrations/google-sheets) ──
++# Random string (openssl rand -hex 32), entered once in the sheet's setup menu
++SHEETS_EXPORT_TOKEN=
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/DEPLOYMENT.md cur/tene-mashkaot/DEPLOYMENT.md
+--- cmp/b/tene-mashkaot/DEPLOYMENT.md	2026-09-30 09:22:56.000000000 +0000
++++ cur/tene-mashkaot/DEPLOYMENT.md	2026-09-30 13:50:29.000000000 +0000
+@@ -230,3 +230,101 @@
+ - **מודלים חדשים:** מריצים `node scripts/build-pour-model.mjs <בקבוק> <כוס>`, אחר כך `npm run optimize:hero` ואז `npm run label`.
+ - **ריענון מטמון:** אחרי כל שינוי במודל מעלים את מספר הגרסה (`?v=`) ב־`MODEL_URL` שבקובץ `src/lib/defaults.ts`, או ב־`ROOM_URL` / `ROSE_URL` שבקובץ `HeroCanvas.tsx`. כך דפדפנים לא יציגו עותק ישן.
+ - **תמונות החנות:** מפותחות מהצילומים המקוריים עם `scripts/enhance-photos.py`: איזון בהירות, תיקון צבע עדין, חדות.
++
++## 11. שלב ההשקה – אינטגרציות
++
++כל אינטגרציה נדלקת רק כשהמשתנים שלה מוגדרים ב־Vercel. אפשר להעלות את האתר לפני שכל החשבונות מוכנים. מפתחות סודיים מזינים ישירות ב־Vercel, תחת Settings ← Environment Variables, ולא שולחים אותם בצ'אט או במייל.
++
++### 11.1 ניטור זמינות – `/api/health`
++1. פותחים חשבון חינמי ב־cron-job.org.
++2. יוצרים משימה חדשה (Create cronjob):
++   - **URL:** `https://<כתובת האתר>/api/health?deep=1`
++   - **Schedule:** כל 10 דקות.
++3. בלשונית Notifications מסמנים **Notify on failure** ו־**Notify on recovery**.
++4. `deep=1` בודק גם את Sanity. אם מערכת הניהול לא עונה, מתקבלת התראה.
++
++### 11.2 רענון לפי עמוד – Webhook ראשון של Sanity
++ב־sanity.io/manage ← API ← Webhooks מעדכנים את ה־webhook הקיים (סעיף 4.1):
++- **URL:** `https://<כתובת האתר>/api/revalidate`
++- **Trigger on:** Create, Update, Delete
++- **Filter:** `_type in ["product", "category", "promotion", "siteSettings", "deliverySettings", "deliveryZone", "legalPage"]`
++- **Projection:** `{_type, "slug": slug.current, "previousSlug": before().slug.current}`
++- **Secret:** הערך של `SANITY_REVALIDATE_SECRET`
++
++התוצאה: עריכת מוצר מרעננת רק את עמוד המוצר ואת רשימות המוצרים, ולא את כל האתר.
++
++### 11.3 מאגר Sanity בתוכנית החינמית
++בתוכנית החינמית המאגר הוא ציבורי, ולא ניתן להפוך אותו לפרטי. לכן **מדלגים על סעיף 2.2**.
++
++הזמנות ופניות נשמרות עם מזהה שיש בו נקודה (`order.…`, `eventInquiry.…`). מסמכים כאלה פרטיים גם במאגר ציבורי: רק בקשה עם טוקן יכולה לקרוא אותם.
++
++### 11.4 סליקה וקבלות – Morning
++1. **מסלול:** לוודא שהעסק במסלול **Best** ומעלה, כי ה־API זמין רק ממנו.
++2. **תוסף תשלומים:** להפעיל את תוסף התשלומים הדיגיטליים, ולוודא מול Morning שמכירת אלכוהול מאושרת.
++3. **חשבון בדיקות:** לפתוח חשבון sandbox, להגדיר בו עסק לדוגמה ולבצע בו רכישה פיקטיבית של מינוי Best.
++4. **מפתחות:** ליצור מפתח API בנתיב: אזור אישי ← כלים למפתחים ← מפתחות API. המפתח הסודי מוצג פעם אחת בלבד.
++5. **משתנים ב־Vercel:**
++
++   | משתנה | Production | Preview (בדיקות) |
++   |---|---|---|
++   | `MORNING_API_KEY_ID` / `MORNING_API_KEY_SECRET` | מפתחות אמיתיים | מפתחות sandbox |
++   | `MORNING_ENV` | `production` | `sandbox` |
++   | `MORNING_DOCUMENT_TYPE` | `320` לעוסק מורשה · `400` לעוסק פטור | כנ"ל |
++   | `MORNING_WEBHOOK_SECRET` | מחרוזת אקראית | מחרוזת אקראית |
++
++6. **בדיקה בסביבת Preview:**
++   1. מבצעים הזמנה עם "אשראי באתר" ומשלמים בכרטיס בדיקה של ה־sandbox.
++   2. אחרי החזרה לאתר, העמוד אמור להציג "התשלום התקבל".
++   3. בסטודיו, ההזמנה אמורה להיות מסומנת "✅ שולם", עם מספר מסמך.
++7. **אם ההזמנה מסומנת "⚠️ לבדיקה":** זה סימן שמבנה הודעת התשלום של Morning שונה ממה שהקוד מצפה לו.
++   - שדה "קבלה ב־Morning" בהזמנה מראה אילו שדות התקבלו.
++   - שלחו אותם למפתח, והוא יעדכן את הקוד.
++   - עד אז שום הזמנה לא מסומנת כשולמה בלי אימות מול Morning.
++
++אבטחה: פרטי הכרטיס מוזנים בדף התשלום של Morning, ולא עוברים דרך האתר. כל הודעת תשלום נבדקת מול ה־API של Morning: המסמך צריך להתקיים, והסכום צריך להיות זהה לסכום ההזמנה.
++
++### 11.5 קבלה על תשלום במסירה – Webhook שני של Sanity
++יוצרים webhook חדש ב־sanity.io/manage ← API ← Webhooks:
++- **URL:** `https://<כתובת האתר>/api/orders/paid`
++- **Trigger on:** Update
++- **Filter:** `_type == "order" && paymentStatus == "paid" && paymentMethod != "card" && !defined(receipt.documentId)`
++- **Projection:** `{_id}`
++- **Secret:** הערך של `SANITY_ORDER_WEBHOOK_SECRET`
++
++השימוש בסטודיו:
++1. פותחים את ההזמנה ועוברים ללשונית "תשלום".
++2. בוחרים **שולם** ואת אמצעי התשלום, ולוחצים Publish.
++3. הקבלה מופקת ב־Morning ונשלחת ללקוח במייל, אם יש לו כתובת.
++4. מספר המסמך מופיע בהזמנה.
++
++אם הופיעה שגיאה בשדה "קבלה ב־Morning", מתקנים את הסיבה ושומרים שוב. השמירה מפעילה ניסיון נוסף.
++
++התוכנית החינמית של Sanity מאפשרת 2 webhooks, בדיוק מה שצריך.
++
++### 11.6 מיילים – Resend (בלי דומיין)
++- עד שיהיה דומיין מאומת, Resend שולח **רק לכתובת שאיתה נפתח החשבון**. לכן `ORDERS_TO_EMAIL` חייב להיות הכתובת הזו.
++- משאירים את `ORDERS_FROM_EMAIL` ריק. ההודעות יישלחו מ־`onboarding@resend.dev`.
++- התבניות בנויות לתצוגה נכונה בכל תוכנת מייל:
++  - טבלאות מבניות (Ghost Tables) ל־Outlook, וכפתורים ב־VML.
++  - כל מספר, טלפון, מחיר ותאריך עטוף בכיווניות LTR מבודדת, כדי שלא יתהפך במובייל.
++
++### 11.7 וואטסאפ אוטומטי – WhatsApp Cloud API
++הוראות מלאות ונוסחי התבניות לאישור: `integrations/whatsapp/TEMPLATES.md`.
++
++תקציר:
++1. פותחים Meta Business ואפליקציה עם מוצר WhatsApp.
++2. מחברים מספר שולח חדש.
++3. מאשרים 3 תבניות Utility.
++4. מזינים ב־Vercel את `WHATSAPP_ACCESS_TOKEN`, ‏`WHATSAPP_PHONE_NUMBER_ID` ו־`WHATSAPP_ALERT_TO`.
++
++### 11.8 Google Sheets
++הוראות מלאות: `integrations/google-sheets/README.md`. מגדירים ב־Vercel את `SHEETS_EXPORT_TOKEN`, ומדביקים את `Code.gs` ב־Apps Script של הגיליון.
++
++### 11.9 הגבלת קצב ואבטחה בנתיבי ה־API
++| נתיב | הגנה |
++|---|---|
++| `/api/health` | 30 בקשות לדקה לכתובת IP |
++| `/api/export/*` | טוקן בכותרת Authorization, השוואה בזמן קבוע, 60 בקשות לשעה |
++| `/api/revalidate`, `/api/orders/paid` | חתימת Sanity, 120 בקשות לדקה |
++| `/api/payments/morning/notify` | סוד ב־URL ואימות מול ה־API של Morning, 120 בקשות לדקה |
++| הזמנה, מחיר ופנייה (Server Actions) | בדיקת מקור הבקשה, Turnstile, מלכודת בוטים, הגבלת קצב |
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/integrations/google-sheets/Code.gs cur/tene-mashkaot/integrations/google-sheets/Code.gs
+--- cmp/b/tene-mashkaot/integrations/google-sheets/Code.gs	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/integrations/google-sheets/Code.gs	2026-09-30 13:48:27.000000000 +0000
+@@ -0,0 +1,115 @@
++/**
++ * תנא משקאות – סנכרון הזמנות ופניות מהאתר ל-Google Sheets.
++ *
++ * האתר מחזיר CSV שבו מספרי הזמנה, טלפונים ותאריכים מתחילים בתו LRM (U+200E),
++ * כך ש-Sheets משאיר אותם כטקסט: לא מוחק אפסים מובילים, לא הופך לתאריך ולא הופך כיוון.
++ * סכומים נשארים מספרים, כך ש-SUM עובד.
++ *
++ * התקנה: integrations/google-sheets/README.md
++ */
++
++var CONFIG = {
++  // הגיליונות שייווצרו/יתעדכנו, וסוג הייצוא באתר עבור כל אחד
++  targets: [
++    { sheet: 'הזמנות', type: 'orders' },
++    { sheet: 'פניות לאירועים', type: 'inquiries' },
++  ],
++  // כמה ימים אחורה לייבא
++  days: 120,
++};
++
++function onOpen() {
++  SpreadsheetApp.getUi()
++    .createMenu('תנא משקאות')
++    .addItem('סנכרון עכשיו', 'syncAll')
++    .addSeparator()
++    .addItem('הגדרה ראשונית (כתובת אתר וטוקן)', 'setup')
++    .addItem('הפעלת סנכרון אוטומטי כל 10 דקות', 'installTrigger')
++    .addItem('עצירת הסנכרון האוטומטי', 'removeTriggers')
++    .addToUi();
++}
++
++/** שומר את כתובת האתר והטוקן ב-Script Properties (לא בקוד, ולא בגיליון). */
++function setup() {
++  var ui = SpreadsheetApp.getUi();
++  var site = ui.prompt('כתובת האתר', 'לדוגמה: https://tene-mashkaot.vercel.app', ui.ButtonSet.OK_CANCEL);
++  if (site.getSelectedButton() !== ui.Button.OK) return;
++  var token = ui.prompt('טוקן ייצוא', 'הערך של SHEETS_EXPORT_TOKEN מ-Vercel', ui.ButtonSet.OK_CANCEL);
++  if (token.getSelectedButton() !== ui.Button.OK) return;
++  PropertiesService.getScriptProperties().setProperties({
++    SITE_URL: site.getResponseText().trim().replace(/\/+$/, ''),
++    EXPORT_TOKEN: token.getResponseText().trim(),
++  });
++  ui.alert('נשמר. עכשיו: תנא משקאות ← סנכרון עכשיו');
++}
++
++function getSettings_() {
++  var props = PropertiesService.getScriptProperties();
++  var siteUrl = (props.getProperty('SITE_URL') || '').replace(/\/+$/, '');
++  var token = props.getProperty('EXPORT_TOKEN');
++  if (!siteUrl || !token) throw new Error('חסרה הגדרה: הריצו "תנא משקאות ← הגדרה ראשונית"');
++  return { siteUrl: siteUrl, token: token };
++}
++
++function syncAll() {
++  var lock = LockService.getScriptLock();
++  if (!lock.tryLock(30 * 1000)) return; // סנכרון אחר כבר רץ
++  try {
++    var settings = getSettings_();
++    CONFIG.targets.forEach(function (target) {
++      syncOne_(settings, target);
++    });
++  } finally {
++    lock.releaseLock();
++  }
++}
++
++function syncOne_(settings, target) {
++  // מנפץ מטמון: פרמטר t משתנה בכל קריאה, כדי ש-Google או פרוקסי לא יחזירו תשובה ישנה.
++  var url = settings.siteUrl + '/api/export/' + target.type + '?days=' + CONFIG.days + '&t=' + Date.now();
++  var response = UrlFetchApp.fetch(url, {
++    method: 'get',
++    headers: { Authorization: 'Bearer ' + settings.token, 'Cache-Control': 'no-cache' },
++    muteHttpExceptions: true,
++    followRedirects: true,
++  });
++  var code = response.getResponseCode();
++  if (code !== 200) {
++    throw new Error('הייצוא "' + target.type + '" נכשל (HTTP ' + code + '): ' + response.getContentText().slice(0, 200));
++  }
++
++  var text = response.getContentText('UTF-8').replace(/^\uFEFF/, '');
++  var rows = Utilities.parseCsv(text);
++  if (!rows.length) return;
++  var width = rows[0].length;
++  var values = rows.map(function (row, index) {
++    // שורת הכותרת נשארת טקסט; בשאר השורות, מספרים "נקיים" (סכומים) נכתבים כמספרים.
++    return row.map(function (value) {
++      return index > 0 && /^-?\d+(\.\d+)?$/.test(value) ? Number(value) : value;
++    });
++  });
++
++  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
++  var sheet = spreadsheet.getSheetByName(target.sheet) || spreadsheet.insertSheet(target.sheet);
++  sheet.setRightToLeft(true);
++  sheet.clearContents();
++  sheet.getRange(1, 1, values.length, width).setValues(values);
++  sheet.setFrozenRows(1);
++  sheet.getRange(1, 1, 1, width).setFontWeight('bold').setBackground('#5a1a22').setFontColor('#f1ddb2');
++  sheet
++    .getRange(1, 1)
++    .setNote('עודכן לאחרונה: ' + Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'dd.MM.yyyy HH:mm'));
++}
++
++function installTrigger() {
++  removeTriggers();
++  ScriptApp.newTrigger('syncAll').timeBased().everyMinutes(10).create();
++  syncAll();
++  SpreadsheetApp.getUi().alert('הסנכרון האוטומטי פעיל – כל 10 דקות.');
++}
++
++function removeTriggers() {
++  ScriptApp.getProjectTriggers().forEach(function (trigger) {
++    if (trigger.getHandlerFunction() === 'syncAll') ScriptApp.deleteTrigger(trigger);
++  });
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/integrations/google-sheets/README.md cur/tene-mashkaot/integrations/google-sheets/README.md
+--- cmp/b/tene-mashkaot/integrations/google-sheets/README.md	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/integrations/google-sheets/README.md	2026-09-30 13:48:27.000000000 +0000
+@@ -0,0 +1,34 @@
++# סנכרון הזמנות ל-Google Sheets
++
++הגיליון מתעדכן אוטומטית כל 10 דקות מתוך האתר. הוא כולל שתי לשוניות: "הזמנות" ו"פניות לאירועים".
++
++## התקנה (פעם אחת)
++
++1. ב-Vercel מגדירים את `SHEETS_EXPORT_TOKEN`, מחרוזת אקראית שיוצרים עם `openssl rand -hex 32`. אחרי השמירה מבצעים Redeploy.
++2. יוצרים גיליון חדש בחשבון Google של החנות.
++3. בגיליון פותחים את **הרחבות ← Apps Script**.
++4. מדביקים את התוכן של `Code.gs` במקום הקוד הקיים.
++5. מעדכנים את קובץ ההגדרות של הפרויקט:
++   1. בהגדרות הפרויקט (סמל גלגל השיניים) מסמנים "Show appsscript.json".
++   2. מדביקים את התוכן של `appsscript.json`.
++6. שומרים, חוזרים לגיליון ומרעננים את הדף. בסרגל העליון מופיע תפריט חדש: **תנא משקאות**.
++7. מריצים את **תנא משקאות ← הגדרה ראשונית**:
++   1. מזינים את כתובת האתר ואת הטוקן.
++   2. מאשרים את ההרשאות ש-Google מבקשת.
++8. מריצים את **תנא משקאות ← הפעלת סנכרון אוטומטי כל 10 דקות**.
++
++## פרטיות
++
++בגיליון יש שמות, טלפונים וכתובות של לקוחות:
++- משתפים אותו רק עם מי שעובד על ההזמנות.
++- בהגדרות השיתוף בוחרים "מוגבל". לא משתמשים ב"כל מי שיש לו את הקישור".
++- אם הטוקן דלף, מחליפים את `SHEETS_EXPORT_TOKEN` ב-Vercel, ומריצים שוב את "הגדרה ראשונית" עם הטוקן החדש.
++
++## איך זה עובד
++
++- **החיבור לאתר:** הסקריפט קורא את `GET /api/export/orders` ואת `GET /api/export/inquiries`.
++  - הטוקן נשלח בכותרת Authorization, ולא בכתובת, ולכן לא נרשם בלוגים.
++  - לכל קריאה מתווסף פרמטר `&t=<זמן>`, כדי שאף שכבת מטמון לא תחזיר נתונים ישנים.
++- **תו LRM:** מספרי הזמנה, טלפונים ותאריכים מגיעים עם תו LRM בתחילתם, ולכן Sheets לא משנה אותם.
++- **סכומים:** הם נשארים מספרים, כך שאפשר לסכם אותם עם SUM.
++- **הגנה מנוסחאות:** טקסט של לקוח שמתחיל ב-`=`, `+`, `-` או `@` מנוטרל. כך לא ניתן להחדיר נוסחה לגיליון.
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/integrations/google-sheets/appsscript.json cur/tene-mashkaot/integrations/google-sheets/appsscript.json
+--- cmp/b/tene-mashkaot/integrations/google-sheets/appsscript.json	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/integrations/google-sheets/appsscript.json	2026-09-30 13:48:27.000000000 +0000
+@@ -0,0 +1,11 @@
++{
++  "timeZone": "Asia/Jerusalem",
++  "exceptionLogging": "STACKDRIVER",
++  "runtimeVersion": "V8",
++  "oauthScopes": [
++    "https://www.googleapis.com/auth/spreadsheets.currentonly",
++    "https://www.googleapis.com/auth/script.external_request",
++    "https://www.googleapis.com/auth/script.scriptapp",
++    "https://www.googleapis.com/auth/script.container.ui"
++  ]
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/integrations/whatsapp/TEMPLATES.md cur/tene-mashkaot/integrations/whatsapp/TEMPLATES.md
+--- cmp/b/tene-mashkaot/integrations/whatsapp/TEMPLATES.md	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/integrations/whatsapp/TEMPLATES.md	2026-09-30 13:48:27.000000000 +0000
+@@ -0,0 +1,62 @@
++# תבניות וואטסאפ (WhatsApp Cloud API)
++
++הודעות שהעסק יוזם חייבות להיות מתבניות מאושרות. יוצרים אותן ב־**WhatsApp Manager ← Message templates ← Create template**.
++
++- **קטגוריה:** Utility (עדכון תפעולי ולא שיווק).
++- **שפה:** Hebrew.
++- **שם התבנית:** בדיוק כמו בטבלה, או שמגדירים שם אחר ב־Vercel לפי המשתנה שבטבלה.
++
++אלה המגבלות של Meta, והנוסחים למטה כבר עומדים בהן:
++- משתנה לא יכול להיות בתחילת ההודעה או בסופה.
++- בתוך ערך של משתנה אסור שיהיו מעברי שורה.
++
++| תבנית | משתנה ב-Vercel (לא חובה) |
++|---|---|
++| `tene_new_order` | `WHATSAPP_TEMPLATE_NEW_ORDER` |
++| `tene_order_paid` | `WHATSAPP_TEMPLATE_ORDER_PAID` |
++| `tene_event_inquiry` | `WHATSAPP_TEMPLATE_EVENT` |
++
++## tene_new_order
++
++```
++🛒 הזמנה חדשה באתר תנא משקאות
++מספר הזמנה: {{1}}
++לקוח: {{2}}
++סכום: {{3}}
++מועד: {{4}}
++תשלום: {{5}}
++הפרטים המלאים נשלחו למייל ונשמרו במערכת הניהול.
++```
++דוגמאות לאישור: `TN-261003-K7PQ` · `ישראל ישראלי` · `₪240.00` · `משלוח · יום שישי, 3.10 10:00–11:00` · `אשראי באתר (ממתין לאישור)`
++
++## tene_order_paid
++
++```
++✅ התקבל תשלום עבור הזמנה {{1}} בסך {{2}}.
++{{3}}
++אפשר לראות את ההזמנה במערכת הניהול.
++```
++דוגמאות: `TN-261003-K7PQ` · `₪240.00` · `מסמך 10234 הופק ונשלח ללקוח`
++
++## tene_event_inquiry
++
++```
++🎉 פנייה חדשה לאירוע
++שם: {{1}}
++טלפון: {{2}}
++סוג אירוע: {{3}}
++תאריך: {{4}}
++פרטים נוספים נשלחו למייל.
++```
++דוגמאות: `ישראל ישראלי` · `053-0000000` · `בר מצווה` · `12.11.2026`
++
++## הגדרה ב-Vercel
++
++| משתנה | מאיפה |
++|---|---|
++| `WHATSAPP_ACCESS_TOKEN` | Business Settings ← System users ← Generate token (הרשאות `whatsapp_business_messaging`, `whatsapp_business_management`) |
++| `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp ← API Setup ← Phone number ID |
++| `WHATSAPP_BUSINESS_ACCOUNT_ID` | WhatsApp ← API Setup ← WhatsApp Business Account ID |
++| `WHATSAPP_ALERT_TO` | המספרים שיקבלו התראות, מופרדים בפסיק (למשל `0535467863`) |
++
++ההתראות נשלחות **ממספר ה-API**, מספר נפרד, **אל** הוואטסאפ הרגיל של החנות. המספר הקיים של החנות ממשיך לעבוד באפליקציה כרגיל.
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/messages/en.json cur/tene-mashkaot/messages/en.json
+--- cmp/b/tene-mashkaot/messages/en.json	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/messages/en.json	2026-09-30 13:46:39.000000000 +0000
+@@ -228,8 +228,16 @@
+       "minOrder": "Your order is below the minimum ({amount}).",
+       "storage": "We had trouble saving your order. Send it to us on WhatsApp and we'll handle it right away.",
+       "network": "Can't reach the server. Check your connection and try again.",
+-      "sendWhatsapp": "Send order via WhatsApp"
+-    }
++      "sendWhatsapp": "Send order via WhatsApp",
++      "payment": "We couldn't open the payment page and your card was not charged. Choose pay on delivery or try again in a moment."
++    },
++    "payment": "Payment method",
++    "payCard": "Card payment on the site",
++    "payCardHint": "Secure Morning (Grow) payment page · Bit, Apple Pay and Google Pay too",
++    "payOnDelivery": "Pay on delivery / pickup",
++    "payOnDeliveryHint": "Cash, Bit or card with the courier or at the store",
++    "submitPay": "Continue to secure payment",
++    "paymentNoteCard": "You will be taken to a secure payment page. Card details never pass through or stay on this site."
+   },
+   "order": {
+     "successTitle": "Thank you! Your order was received",
+@@ -237,7 +245,16 @@
+     "nextSteps": "We'll contact you to confirm and arrange payment. Want it faster? Send us the order on WhatsApp in one tap:",
+     "sendWhatsapp": "Send order via WhatsApp",
+     "backHome": "Back to home",
+-    "noSummary": "Your order details were sent to the store."
++    "noSummary": "Your order details were sent to the store.",
++    "paymentPaid": "Payment received ✅",
++    "paymentPaidBody": "Your receipt was e-mailed to you. See you at the time you chose!",
++    "viewReceipt": "View receipt",
++    "paymentVerifying": "Verifying your payment…",
++    "paymentVerifyingBody": "This usually takes a few seconds. The page updates by itself.",
++    "paymentFailed": "Payment was not completed",
++    "paymentFailedBody": "Your card was not charged. Your order is saved – message us on WhatsApp and we will complete it with pay on delivery or a new link.",
++    "paymentReview": "Payment received and being reviewed",
++    "paymentReviewBody": "We will contact you only if anything else is needed."
+   },
+   "events": {
+     "title": "Event orders",
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/messages/he.json cur/tene-mashkaot/messages/he.json
+--- cmp/b/tene-mashkaot/messages/he.json	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/messages/he.json	2026-09-30 13:46:39.000000000 +0000
+@@ -228,8 +228,16 @@
+       "minOrder": "ההזמנה נמוכה ממינימום ההזמנה ({amount}).",
+       "storage": "אירעה תקלה בשמירת ההזמנה. שלחו לנו אותה בוואטסאפ ונטפל מיד.",
+       "network": "אין חיבור לשרת. בדקו את החיבור ונסו שוב.",
+-      "sendWhatsapp": "שליחת ההזמנה בוואטסאפ"
+-    }
++      "sendWhatsapp": "שליחת ההזמנה בוואטסאפ",
++      "payment": "לא הצלחנו לפתוח את דף התשלום, והכרטיס לא חויב. אפשר לבחור תשלום במסירה או לנסות שוב בעוד רגע."
++    },
++    "payment": "אמצעי תשלום",
++    "payCard": "אשראי באתר",
++    "payCardHint": "דף תשלום מאובטח של Morning ‏(Grow) · גם ביט, Apple Pay ו־Google Pay",
++    "payOnDelivery": "תשלום במסירה / באיסוף",
++    "payOnDeliveryHint": "מזומן, ביט או אשראי מול השליח או בחנות",
++    "submitPay": "המשך לתשלום מאובטח",
++    "paymentNoteCard": "תועברו לדף תשלום מאובטח. פרטי הכרטיס אינם עוברים דרך האתר ואינם נשמרים בו."
+   },
+   "order": {
+     "successTitle": "תודה! ההזמנה התקבלה",
+@@ -237,7 +245,16 @@
+     "nextSteps": "ניצור איתך קשר לאישור ולתשלום. רוצים לזרז? שלחו לנו את ההזמנה בוואטסאפ בלחיצה אחת:",
+     "sendWhatsapp": "שליחת ההזמנה בוואטסאפ",
+     "backHome": "חזרה לדף הבית",
+-    "noSummary": "פרטי ההזמנה נשלחו לחנות."
++    "noSummary": "פרטי ההזמנה נשלחו לחנות.",
++    "paymentPaid": "התשלום התקבל ✅",
++    "paymentPaidBody": "הקבלה נשלחה אליך במייל. נתראה במועד שבחרת!",
++    "viewReceipt": "צפייה בקבלה",
++    "paymentVerifying": "מאמתים את התשלום…",
++    "paymentVerifyingBody": "זה לוקח בדרך כלל כמה שניות. העמוד יתעדכן לבד.",
++    "paymentFailed": "התשלום לא הושלם",
++    "paymentFailedBody": "הכרטיס לא חויב. ההזמנה שמורה אצלנו – כתבו לנו בוואטסאפ ונשלים אותה בתשלום במסירה או בקישור חדש.",
++    "paymentReview": "התשלום התקבל ונמצא בבדיקה",
++    "paymentReviewBody": "ניצור איתך קשר רק אם יידרש משהו נוסף."
+   },
+   "events": {
+     "title": "הזמנות לאירועים",
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/actions/checkout.ts cur/tene-mashkaot/src/actions/checkout.ts
+--- cmp/b/tene-mashkaot/src/actions/checkout.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/actions/checkout.ts	2026-09-30 13:42:19.000000000 +0000
+@@ -1,12 +1,15 @@
+ 'use server';
+ 
+ import { randomInt, randomUUID } from 'node:crypto';
++import { after } from 'next/server';
++import { SITE_URL } from '@/lib/defaults';
+ import { getDeliverySettings, getDeliveryZonesFresh, getProductsByIdsFresh, getPromotionsFresh, getSiteSettings } from '@/lib/data';
+ import { localize } from '@/lib/i18n-utils';
+ import { buildOrderText, formatSlot, type OrderSummary } from '@/lib/order-summary';
+ import { computeCart, type CartTotals } from '@/lib/pricing';
+ import { getDeliverySlots, getOrderingState, isValidSlot, type DeliverySlot, type OrderingState } from '@/lib/schedule';
+-import { sendOrderEmail } from '@/lib/server/email';
++import { createPaymentForm, isCardPaymentEnabled } from '@/lib/server/morning';
++import { notifyNewOrder } from '@/lib/server/notify';
+ import { checkRateLimit } from '@/lib/server/rate-limit';
+ import { getClientIp, isSameOrigin } from '@/lib/server/request';
+ import { verifyTurnstile } from '@/lib/server/turnstile';
+@@ -42,7 +45,7 @@
+   | { ok: false; error: 'invalid' | 'rateLimited' | 'unavailable' };
+ 
+ export type PlaceOrderResult =
+-  | { ok: true; orderNumber: string; whatsappUrl: string; summary: string; stored: boolean }
++  | { ok: true; orderNumber: string; whatsappUrl: string; summary: string; stored: boolean; paymentUrl?: string }
+   | {
+       ok: false;
+       error:
+@@ -57,7 +60,8 @@
+         | 'minOrder'
+         | 'slot'
+         | 'customization'
+-        | 'storage';
++        | 'storage'
++        | 'payment';
+       fieldErrors?: Record<string, string>;
+       productIds?: string[];
+       whatsappUrl?: string;
+@@ -155,6 +159,7 @@
+ 
+   if (input.website || Date.now() - input.startedAt < MIN_FORM_FILL_MS) return { ok: false, error: 'bot' };
+   if (!(await verifyTurnstile(input.turnstileToken, ip))) return { ok: false, error: 'bot' };
++  if (input.paymentMethod === 'card' && !isCardPaymentEnabled()) return { ok: false, error: 'payment' };
+ 
+   const [settings, delivery] = await Promise.all([getSiteSettings(), getDeliverySettings()]);
+   const now = new Date();
+@@ -244,17 +249,23 @@
+     couponDiscount: totals.couponDiscount,
+     deliveryFee: totals.deliveryFee,
+     total: totals.total,
++    paymentMethod: input.paymentMethod,
+   };
+ 
++  const card = input.paymentMethod === 'card';
++  // A dot in the id keeps the document private even in a public dataset (Sanity "path" ids).
++  const orderId = `order.${randomUUID()}`;
+   let stored = false;
+   const client = getWriteClient();
+   if (client) {
+     try {
+       await client.create({
+-        _id: `order.${randomUUID()}`,
++        _id: orderId,
+         _type: 'order',
+         orderNumber,
+         status: 'new',
++        paymentMethod: input.paymentMethod,
++        paymentStatus: card ? 'pending' : 'unpaid',
+         createdAt: now.toISOString(),
+         locale: input.locale,
+         fulfillment: input.fulfillment,
+@@ -293,13 +304,53 @@
+     console.error('[checkout] SANITY_API_WRITE_TOKEN is missing; order will be emailed only', { orderNumber });
+   }
+ 
+-  const emailed = await sendOrderEmail(summary, { stored });
+   const text = buildOrderText(summary);
+   const whatsappUrl = whatsappLink(settings.whatsapp, text);
+ 
+-  if (!stored && !emailed) {
+-    return { ok: false, error: 'storage', whatsappUrl };
++  if (card) {
++    // Payment status is tracked on the stored order, so a card order cannot proceed without it.
++    if (!stored || !client) return { ok: false, error: 'storage', whatsappUrl };
++    const secret = process.env.MORNING_WEBHOOK_SECRET ?? '';
++    let paymentUrl: string;
++    try {
++      paymentUrl = await createPaymentForm(
++        {
++          orderNumber,
++          locale: input.locale,
++          customer: { name: input.name, phone: input.phone, email: input.email || undefined },
++          lines: summaryLines.map((line) => ({ title: line.title, quantity: line.quantity, unitPrice: line.unitPrice })),
++          deliveryFee: totals.deliveryFee,
++          couponDiscount: totals.couponDiscount,
++          total: totals.total,
++        },
++        {
++          success: `${SITE_URL}/${input.locale}/order/${orderNumber}?payment=success`,
++          failure: `${SITE_URL}/${input.locale}/order/${orderNumber}?payment=failed`,
++          notify: `${SITE_URL}/api/payments/morning/notify?order=${encodeURIComponent(orderId)}&token=${encodeURIComponent(secret)}`,
++        },
++        orderId,
++      );
++    } catch (error) {
++      console.error('[checkout] payment form failed', { orderNumber, error });
++      await client
++        .patch(orderId)
++        .set({ status: 'cancelled', paymentStatus: 'failed', internalNotes: 'יצירת דף התשלום נכשלה – הלקוח לא חויב.' })
++        .commit()
++        .catch(() => undefined);
++      return { ok: false, error: 'payment', whatsappUrl };
++    }
++    // Alerts go out after the response, so the customer reaches the payment page immediately.
++    after(() => notifyNewOrder(summary, { stored, orderId, paymentMethod: 'card' }));
++    return { ok: true, orderNumber, whatsappUrl, summary: text, stored, paymentUrl };
++  }
++
++  if (stored) {
++    after(() => notifyNewOrder(summary, { stored, orderId, paymentMethod: 'onDelivery' }));
++    return { ok: true, orderNumber, whatsappUrl, summary: text, stored };
+   }
+ 
++  // Not stored: the e-mail is the only record, so it must succeed before we confirm.
++  const { emailed } = await notifyNewOrder(summary, { stored, paymentMethod: 'onDelivery' });
++  if (!emailed) return { ok: false, error: 'storage', whatsappUrl };
+   return { ok: true, orderNumber, whatsappUrl, summary: text, stored };
+ }
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/actions/events.ts cur/tene-mashkaot/src/actions/events.ts
+--- cmp/b/tene-mashkaot/src/actions/events.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/actions/events.ts	2026-09-30 13:42:19.000000000 +0000
+@@ -2,7 +2,7 @@
+ 
+ import { randomUUID } from 'node:crypto';
+ import { getSiteSettings } from '@/lib/data';
+-import { sendEventInquiryEmail } from '@/lib/server/email';
++import { notifyEventInquiry } from '@/lib/server/notify';
+ import { checkRateLimit } from '@/lib/server/rate-limit';
+ import { getClientIp, isSameOrigin } from '@/lib/server/request';
+ import { verifyTurnstile } from '@/lib/server/turnstile';
+@@ -65,7 +65,7 @@
+     }
+   }
+ 
+-  const emailed = await sendEventInquiryEmail(input, { stored });
++  const { emailed } = await notifyEventInquiry(input, { stored });
+   if (!stored && !emailed) {
+     const settings = await getSiteSettings();
+     const text = [`פנייה לאירוע`, `שם: ${input.name}`, `טלפון: ${input.phone}`, `סוג: ${input.eventType}`, `תאריך: ${input.eventDate}`, input.message ?? '']
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/app/[locale]/checkout/page.tsx cur/tene-mashkaot/src/app/[locale]/checkout/page.tsx
+--- cmp/b/tene-mashkaot/src/app/[locale]/checkout/page.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/app/[locale]/checkout/page.tsx	2026-09-30 13:46:39.000000000 +0000
+@@ -4,6 +4,7 @@
+ import { SectionHeading } from '@/components/ui/SectionHeading';
+ import { getSiteSettings } from '@/lib/data';
+ import { localize } from '@/lib/i18n-utils';
++import { isCardPaymentEnabled } from '@/lib/server/morning';
+ 
+ export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+   const { locale } = await params;
+@@ -20,7 +21,7 @@
+   return (
+     <div className="mx-auto max-w-6xl px-4 pt-10 sm:px-6">
+       <SectionHeading as="h1" title={t('title')} />
+-      <CheckoutForm pickupAddress={pickupAddress} />
++      <CheckoutForm pickupAddress={pickupAddress} cardPaymentsEnabled={isCardPaymentEnabled()} />
+     </div>
+   );
+ }
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/app/[locale]/order/[number]/page.tsx cur/tene-mashkaot/src/app/[locale]/order/[number]/page.tsx
+--- cmp/b/tene-mashkaot/src/app/[locale]/order/[number]/page.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/app/[locale]/order/[number]/page.tsx	2026-09-30 13:46:39.000000000 +0000
+@@ -3,6 +3,7 @@
+ import { getTranslations, setRequestLocale } from 'next-intl/server';
+ import { OrderSuccess } from '@/components/checkout/OrderSuccess';
+ import { getSiteSettings } from '@/lib/data';
++import { getOrderPublicStatus } from '@/lib/server/orders';
+ import { whatsappLink } from '@/lib/whatsapp';
+ 
+ const ORDER_NUMBER = /^TN-\d{6}-[A-Z2-9]{4}$/;
+@@ -13,16 +14,27 @@
+   return { title: t('successTitle'), robots: { index: false, follow: false } };
+ }
+ 
+-export default async function OrderPage({ params }: { params: Promise<{ locale: string; number: string }> }) {
++export default async function OrderPage({
++  params,
++  searchParams,
++}: {
++  params: Promise<{ locale: string; number: string }>;
++  searchParams: Promise<{ payment?: string | string[] }>;
++}) {
+   const { locale, number } = await params;
+   setRequestLocale(locale);
+   if (!ORDER_NUMBER.test(number)) notFound();
+-  const settings = await getSiteSettings();
++  const [settings, status, query] = await Promise.all([getSiteSettings(), getOrderPublicStatus(number), searchParams]);
++  const result = query.payment === 'success' || query.payment === 'failed' ? query.payment : undefined;
+   const fallback = whatsappLink(settings.whatsapp, locale === 'en' ? `Hi, I just placed order ${number}` : `שלום, ביצעתי הזמנה מספר ${number}`);
+ 
+   return (
+     <div className="px-4 pt-16 sm:px-6">
+-      <OrderSuccess orderNumber={number} fallbackWhatsapp={fallback} />
++      <OrderSuccess
++        orderNumber={number}
++        fallbackWhatsapp={fallback}
++        payment={{ method: status?.paymentMethod, status: status?.paymentStatus, receiptUrl: status?.receiptUrl, result }}
++      />
+     </div>
+   );
+ }
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/app/api/export/[type]/route.ts cur/tene-mashkaot/src/app/api/export/[type]/route.ts
+--- cmp/b/tene-mashkaot/src/app/api/export/[type]/route.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/app/api/export/[type]/route.ts	2026-09-30 13:44:53.000000000 +0000
+@@ -0,0 +1,88 @@
++import { NextResponse, type NextRequest } from 'next/server';
++import { label, ORDER_STATUS_OPTIONS, PAYMENT_STATUS_OPTIONS } from '@/lib/order-status';
++import { toCsv, type CsvColumn } from '@/lib/server/csv';
++import { listInquiriesForExport, listOrdersForExport, type StoredInquiry, type StoredOrder } from '@/lib/server/orders';
++import { checkRateLimit } from '@/lib/server/rate-limit';
++import { bearerToken, requestIp, safeEqual } from '@/lib/server/secrets';
++
++/**
++ * CSV feed for the Google Sheets sync (integrations/google-sheets/Code.gs).
++ * Auth: `Authorization: Bearer <SHEETS_EXPORT_TOKEN>` (never in the URL, so it stays out of logs).
++ */
++export const dynamic = 'force-dynamic';
++
++const israelTime = new Intl.DateTimeFormat('sv-SE', {
++  timeZone: 'Asia/Jerusalem',
++  year: 'numeric',
++  month: '2-digit',
++  day: '2-digit',
++  hour: '2-digit',
++  minute: '2-digit',
++  hourCycle: 'h23',
++});
++const hhmm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
++
++const when = (iso?: string) => (iso ? israelTime.format(new Date(iso)) : '');
++const slot = (order: StoredOrder) =>
++  order.slot?.start && order.slot.end ? `${when(order.slot.start).slice(0, 10)} ${hhmm.format(new Date(order.slot.start))}–${hhmm.format(new Date(order.slot.end))}` : '';
++
++const PAYMENT_METHOD: Record<string, string> = { card: 'אשראי באתר', onDelivery: 'במסירה / באיסוף' };
++
++const ORDER_COLUMNS: CsvColumn<StoredOrder>[] = [
++  { header: 'מספר הזמנה', kind: 'lrm', value: (o) => o.orderNumber },
++  { header: 'נוצרה', kind: 'lrm', value: (o) => when(o.createdAt) },
++  { header: 'סטטוס', kind: 'text', value: (o) => label(ORDER_STATUS_OPTIONS, o.status) },
++  { header: 'אמצעי תשלום', kind: 'text', value: (o) => PAYMENT_METHOD[o.paymentMethod ?? 'onDelivery'] },
++  { header: 'סטטוס תשלום', kind: 'text', value: (o) => label(PAYMENT_STATUS_OPTIONS, o.paymentStatus) },
++  { header: 'שם', kind: 'text', value: (o) => o.customer?.name },
++  { header: 'טלפון', kind: 'lrm', value: (o) => o.customer?.phone },
++  { header: 'מייל', kind: 'text', value: (o) => o.customer?.email },
++  { header: 'אופן קבלה', kind: 'text', value: (o) => (o.fulfillment === 'pickup' ? 'איסוף עצמי' : 'משלוח') },
++  { header: 'כתובת', kind: 'text', value: (o) => [o.address?.street, o.address?.apartment, o.address?.city].filter(Boolean).join(', ') },
++  { header: 'מועד', kind: 'lrm', value: slot },
++  { header: 'פריטים', kind: 'text', value: (o) => (o.items ?? []).map((i) => `${i.quantity ?? 1}× ${i.title ?? ''}`).join(' | ') },
++  { header: 'סכום פריטים', kind: 'number', value: (o) => o.subtotal },
++  { header: 'הנחה', kind: 'number', value: (o) => o.discount },
++  { header: 'משלוח', kind: 'number', value: (o) => o.deliveryFee },
++  { header: 'סה״כ', kind: 'number', value: (o) => o.total },
++  { header: 'קופון', kind: 'text', value: (o) => o.couponCode },
++  { header: 'הערות', kind: 'text', value: (o) => o.notes },
++  { header: 'מסמך ב־Morning', kind: 'lrm', value: (o) => o.receipt?.documentNumber },
++];
++
++const INQUIRY_COLUMNS: CsvColumn<StoredInquiry>[] = [
++  { header: 'נוצרה', kind: 'lrm', value: (i) => when(i.createdAt) },
++  { header: 'סטטוס', kind: 'text', value: (i) => i.status },
++  { header: 'שם', kind: 'text', value: (i) => i.name },
++  { header: 'טלפון', kind: 'lrm', value: (i) => i.phone },
++  { header: 'מייל', kind: 'text', value: (i) => i.email },
++  { header: 'סוג אירוע', kind: 'text', value: (i) => i.eventType },
++  { header: 'תאריך האירוע', kind: 'lrm', value: (i) => i.eventDate },
++  { header: 'משתתפים', kind: 'number', value: (i) => i.guests },
++  { header: 'תקציב', kind: 'number', value: (i) => i.budget },
++  { header: 'הודעה', kind: 'text', value: (i) => i.message },
++];
++
++const NO_STORE = { 'Cache-Control': 'no-store, max-age=0', 'X-Robots-Tag': 'noindex' };
++
++export async function GET(request: NextRequest, { params }: { params: Promise<{ type: string }> }) {
++  const token = process.env.SHEETS_EXPORT_TOKEN;
++  if (!token) return NextResponse.json({ message: 'Export is not configured' }, { status: 503, headers: NO_STORE });
++  if (!(await checkRateLimit('export', requestIp(request)))) {
++    return NextResponse.json({ message: 'Too many requests' }, { status: 429, headers: { ...NO_STORE, 'Retry-After': '600' } });
++  }
++  if (!safeEqual(bearerToken(request), token)) {
++    return NextResponse.json({ message: 'Unauthorized' }, { status: 401, headers: { ...NO_STORE, 'WWW-Authenticate': 'Bearer' } });
++  }
++
++  const { type } = await params;
++  const days = Math.min(Math.max(Number(request.nextUrl.searchParams.get('days')) || 90, 1), 730);
++  let csv: string;
++  if (type === 'orders') csv = toCsv(await listOrdersForExport(days), ORDER_COLUMNS);
++  else if (type === 'inquiries') csv = toCsv(await listInquiriesForExport(days), INQUIRY_COLUMNS);
++  else return NextResponse.json({ message: 'Unknown export' }, { status: 404, headers: NO_STORE });
++
++  return new NextResponse(csv, {
++    headers: { ...NO_STORE, 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `inline; filename="${type}.csv"` },
++  });
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/app/api/health/route.ts cur/tene-mashkaot/src/app/api/health/route.ts
+--- cmp/b/tene-mashkaot/src/app/api/health/route.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/app/api/health/route.ts	2026-09-30 13:44:53.000000000 +0000
+@@ -0,0 +1,55 @@
++import { NextResponse, type NextRequest } from 'next/server';
++import { checkRateLimit } from '@/lib/server/rate-limit';
++import { requestIp } from '@/lib/server/secrets';
++import { getReadClient } from '@/sanity/lib/client';
++
++/**
++ * Uptime endpoint for an external monitor (cron-job.org every 10 minutes). On sleeping free hosts it
++ * also keeps the server warm. `?deep=1` additionally checks Sanity, so a CMS outage is reported too.
++ */
++export const dynamic = 'force-dynamic';
++
++const HEADERS = { 'Cache-Control': 'no-store, max-age=0', 'X-Robots-Tag': 'noindex' };
++
++async function checkSanity(): Promise<'ok' | 'error' | 'skipped'> {
++  const client = getReadClient();
++  if (!client) return 'skipped';
++  try {
++    await Promise.race([
++      client.fetch('count(*[_id == "siteSettings"])', {}, { cache: 'no-store' }),
++      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
++    ]);
++    return 'ok';
++  } catch {
++    return 'error';
++  }
++}
++
++async function handle(request: NextRequest, withBody: boolean) {
++  if (!(await checkRateLimit('health', requestIp(request)))) {
++    return new NextResponse(null, { status: 429, headers: { ...HEADERS, 'Retry-After': '60' } });
++  }
++  const deep = request.nextUrl.searchParams.get('deep') === '1';
++  const checks = { app: 'ok', sanity: deep ? await checkSanity() : 'skipped' };
++  const healthy = checks.sanity !== 'error';
++  const status = healthy ? 200 : 503;
++  if (!withBody) return new NextResponse(null, { status, headers: HEADERS });
++  return NextResponse.json(
++    {
++      status: healthy ? 'ok' : 'degraded',
++      time: new Date().toISOString(),
++      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
++      region: process.env.VERCEL_REGION ?? null,
++      checks,
++    },
++    { status, headers: HEADERS },
++  );
++}
++
++export function GET(request: NextRequest) {
++  return handle(request, true);
++}
++
++export function HEAD(request: NextRequest) {
++  return handle(request, false);
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/app/api/orders/paid/route.ts cur/tene-mashkaot/src/app/api/orders/paid/route.ts
+--- cmp/b/tene-mashkaot/src/app/api/orders/paid/route.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/app/api/orders/paid/route.ts	2026-09-30 13:44:53.000000000 +0000
+@@ -0,0 +1,66 @@
++import { NextResponse, type NextRequest } from 'next/server';
++import { parseBody } from 'next-sanity/webhook';
++import { createDeliveryReceipt, getMorningConfig } from '@/lib/server/morning';
++import { getOrderById, toMorningOrder } from '@/lib/server/orders';
++import { checkRateLimit } from '@/lib/server/rate-limit';
++import { requestIp } from '@/lib/server/secrets';
++import { getWriteClient } from '@/sanity/lib/client';
++
++/**
++ * Sanity webhook: when the store marks a pay-on-delivery order as "paid" in the Studio, issue the
++ * receipt in Morning (which e-mails it to the customer) and store its number on the order.
++ * Webhook filter: _type == "order" && paymentStatus == "paid" && paymentMethod != "card" && !defined(receipt.documentId)
++ */
++export const dynamic = 'force-dynamic';
++
++export async function POST(request: NextRequest) {
++  const secret = process.env.SANITY_ORDER_WEBHOOK_SECRET;
++  if (!secret) return NextResponse.json({ message: 'Not configured' }, { status: 503 });
++  if (!(await checkRateLimit('webhook', requestIp(request)))) return NextResponse.json({ message: 'Too many requests' }, { status: 429 });
++
++  let id: string | undefined;
++  try {
++    const { isValidSignature, body } = await parseBody<{ _id?: string }>(request, secret, true);
++    if (!isValidSignature) return NextResponse.json({ message: 'Invalid signature' }, { status: 401 });
++    id = body?._id;
++  } catch {
++    return NextResponse.json({ message: 'Bad request' }, { status: 400 });
++  }
++
++  const client = getWriteClient();
++  if (!client) return NextResponse.json({ message: 'Storage not configured' }, { status: 503 });
++  const order = id ? await getOrderById(id) : null;
++  if (!order || order.paymentStatus !== 'paid' || order.paymentMethod === 'card') return NextResponse.json({ ok: true, status: 'ignored' });
++  if (order.receipt?.documentId || order.receipt?.status === 'creating') return NextResponse.json({ ok: true, status: 'already-handled' });
++
++  if (!getMorningConfig()) {
++    await client.patch(order._id).set({ receipt: { status: 'error', error: 'Morning אינו מחובר – יש להפיק קבלה ידנית.' } }).commit();
++    return NextResponse.json({ ok: true, status: 'not-configured' });
++  }
++
++  // Claim the order atomically: a second delivery of the same webhook fails the revision check.
++  try {
++    await client.patch(order._id).ifRevisionId(order._rev).set({ receipt: { status: 'creating' } }).commit();
++  } catch {
++    return NextResponse.json({ ok: true, status: 'busy' });
++  }
++
++  const paidAt = order.paidAt ?? new Date().toISOString();
++  try {
++    const document = await createDeliveryReceipt(toMorningOrder(order), order.paidWith ?? 'cash', new Date(paidAt));
++    await client
++      .patch(order._id)
++      .set({ paidAt, receipt: { status: 'created', documentId: document.id, documentNumber: document.number, documentUrl: document.url } })
++      .commit();
++    return NextResponse.json({ ok: true, status: 'created', document: document.number ?? document.id });
++  } catch (error) {
++    console.error('[orders/paid] receipt failed', { orderId: order._id, error });
++    // Saving again (after fixing the cause) re-triggers the webhook, because "error" is not a final state.
++    await client
++      .patch(order._id)
++      .set({ receipt: { status: 'error', error: error instanceof Error ? error.message.slice(0, 300) : 'שגיאה לא ידועה' } })
++      .commit()
++      .catch(() => undefined);
++    return NextResponse.json({ ok: false, status: 'error' });
++  }
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/app/api/payments/morning/notify/route.ts cur/tene-mashkaot/src/app/api/payments/morning/notify/route.ts
+--- cmp/b/tene-mashkaot/src/app/api/payments/morning/notify/route.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/app/api/payments/morning/notify/route.ts	2026-09-30 13:44:53.000000000 +0000
+@@ -0,0 +1,108 @@
++import { after, NextResponse, type NextRequest } from 'next/server';
++import { getMorningConfig, getMorningDocument, type MorningDocumentInfo } from '@/lib/server/morning';
++import { notifyOrderPaid } from '@/lib/server/notify';
++import { getOrderById, ORDER_ID_PATTERN } from '@/lib/server/orders';
++import { checkRateLimit } from '@/lib/server/rate-limit';
++import { requestIp, safeEqual } from '@/lib/server/secrets';
++import { getWriteClient } from '@/sanity/lib/client';
++
++/**
++ * Payment notification from Morning (the notifyUrl given to each payment form). The URL carries the
++ * order id and a shared secret; the payment itself is then verified against Morning's API (document
++ * exists and the amount matches), so a leaked URL alone can never mark an order as paid.
++ */
++export const dynamic = 'force-dynamic';
++
++async function readPayload(request: NextRequest): Promise<Record<string, unknown>> {
++  if (request.method !== 'POST') return {};
++  const type = request.headers.get('content-type') ?? '';
++  try {
++    if (type.includes('application/json')) return ((await request.json()) as Record<string, unknown>) ?? {};
++    if (type.includes('form')) {
++      const form = await request.formData();
++      return Object.fromEntries([...form.entries()].map(([key, value]) => [key, typeof value === 'string' ? value : '']));
++    }
++    const text = await request.text();
++    return text ? (JSON.parse(text) as Record<string, unknown>) : {};
++  } catch {
++    return {};
++  }
++}
++
++function findDocumentId(payload: Record<string, unknown>, query: URLSearchParams): string | undefined {
++  const nested = (value: unknown, key: string) => (value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined);
++  const candidates = [
++    payload.documentId,
++    payload.docId,
++    nested(payload.document, 'id'),
++    nested(payload.data, 'documentId'),
++    nested(nested(payload.data, 'document'), 'id'),
++    payload.id,
++    query.get('documentId'),
++    query.get('docId'),
++  ];
++  const found = candidates.find((value) => typeof value === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(value));
++  return typeof found === 'string' ? found : undefined;
++}
++
++async function handle(request: NextRequest) {
++  const secret = process.env.MORNING_WEBHOOK_SECRET;
++  if (!secret || !getMorningConfig()) return NextResponse.json({ message: 'Not configured' }, { status: 503 });
++  if (!(await checkRateLimit('webhook', requestIp(request)))) return NextResponse.json({ message: 'Too many requests' }, { status: 429 });
++  const query = request.nextUrl.searchParams;
++  if (!safeEqual(query.get('token'), secret)) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
++
++  const orderId = query.get('order') ?? '';
++  if (!ORDER_ID_PATTERN.test(orderId)) return NextResponse.json({ message: 'Bad order id' }, { status: 400 });
++  const client = getWriteClient();
++  if (!client) return NextResponse.json({ message: 'Storage not configured' }, { status: 503 });
++  const order = await getOrderById(orderId);
++  if (!order) return NextResponse.json({ message: 'Unknown order' }, { status: 404 });
++  if (order.paymentStatus === 'paid') return NextResponse.json({ ok: true, status: 'already-paid' });
++
++  const payload = await readPayload(request);
++  const documentId = findDocumentId(payload, query);
++  let document: MorningDocumentInfo | undefined;
++  let verified = false;
++  if (documentId) {
++    try {
++      document = await getMorningDocument(documentId);
++      const amountMatches = document.amount !== undefined && Math.abs(document.amount - (order.total ?? 0)) < 0.01;
++      const orderMatches = !document.custom || document.custom === orderId;
++      verified = amountMatches && orderMatches;
++    } catch (error) {
++      console.error('[morning-notify] document lookup failed', { orderId, documentId, error });
++    }
++  }
++
++  await client
++    .patch(orderId)
++    .set({
++      paymentStatus: verified ? 'paid' : 'review',
++      ...(verified ? { paidAt: new Date().toISOString() } : {}),
++      receipt: {
++        status: document ? 'created' : 'unverified',
++        documentId: document?.id || documentId,
++        documentNumber: document?.number,
++        documentUrl: document?.url,
++        // Keys only, for troubleshooting: payment payloads can contain personal data.
++        error: verified ? undefined : `לא אומת אוטומטית. שדות שהתקבלו: ${Object.keys(payload).slice(0, 30).join(', ') || 'אין'}`,
++      },
++    })
++    .commit();
++
++  after(() =>
++    notifyOrderPaid({
++      orderNumber: order.orderNumber,
++      orderId,
++      total: order.total ?? 0,
++      verified,
++      documentNumber: document?.number,
++      documentUrl: document?.url,
++    }),
++  );
++  return NextResponse.json({ ok: true, verified });
++}
++
++export const POST = handle;
++export const GET = handle;
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/app/api/revalidate/route.ts cur/tene-mashkaot/src/app/api/revalidate/route.ts
+--- cmp/b/tene-mashkaot/src/app/api/revalidate/route.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/app/api/revalidate/route.ts	2026-09-30 13:42:19.000000000 +0000
+@@ -1,17 +1,42 @@
+ import { revalidateTag } from 'next/cache';
+ import { NextResponse, type NextRequest } from 'next/server';
+ import { parseBody } from 'next-sanity/webhook';
+-import { CACHE_TAGS, type CacheTag } from '@/sanity/lib/fetch';
++import { checkRateLimit } from '@/lib/server/rate-limit';
++import { requestIp } from '@/lib/server/secrets';
++import { CACHE_TAGS, legalTag, productTag } from '@/sanity/lib/fetch';
+ 
+-const TYPE_TO_TAGS: Record<string, CacheTag[]> = {
+-  siteSettings: [CACHE_TAGS.settings],
+-  deliverySettings: [CACHE_TAGS.delivery],
+-  deliveryZone: [CACHE_TAGS.delivery],
+-  category: [CACHE_TAGS.catalog],
+-  product: [CACHE_TAGS.catalog],
+-  promotion: [CACHE_TAGS.promotions, CACHE_TAGS.catalog],
+-  legalPage: [CACHE_TAGS.legal],
+-};
++/**
++ * On-demand revalidation from the Sanity webhook. Configure the webhook projection as:
++ *   {_type, "slug": slug.current, "previousSlug": before().slug.current}
++ * so a product edit refreshes only that product's page plus the listings that show it.
++ */
++interface WebhookBody {
++  _type?: string;
++  slug?: string | null;
++  previousSlug?: string | null;
++}
++
++function tagsFor(body: WebhookBody): string[] {
++  const slugs = [body.slug, body.previousSlug].filter((s): s is string => Boolean(s));
++  switch (body._type) {
++    case 'product':
++      return [CACHE_TAGS.products, ...slugs.map(productTag)];
++    case 'category':
++      // Navigation, category pages and product listings; individual product pages refresh on their own schedule.
++      return [CACHE_TAGS.categories, CACHE_TAGS.products];
++    case 'promotion':
++      return [CACHE_TAGS.promotions];
++    case 'siteSettings':
++      return [CACHE_TAGS.settings];
++    case 'deliverySettings':
++    case 'deliveryZone':
++      return [CACHE_TAGS.delivery];
++    case 'legalPage':
++      return slugs.length ? slugs.map(legalTag) : [CACHE_TAGS.legal];
++    default:
++      return [];
++  }
++}
+ 
+ export async function POST(request: NextRequest) {
+   const secret = process.env.SANITY_REVALIDATE_SECRET;
+@@ -19,16 +44,15 @@
+     console.error('[revalidate] SANITY_REVALIDATE_SECRET is not set');
+     return NextResponse.json({ message: 'Not configured' }, { status: 500 });
+   }
++  if (!(await checkRateLimit('webhook', requestIp(request)))) {
++    return NextResponse.json({ message: 'Too many requests' }, { status: 429 });
++  }
+ 
+   try {
+-    const { isValidSignature, body } = await parseBody<{ _type?: string }>(request, secret, true);
+-    if (!isValidSignature) {
+-      return NextResponse.json({ message: 'Invalid signature' }, { status: 401 });
+-    }
+-    const tags = body?._type ? TYPE_TO_TAGS[body._type] : undefined;
+-    if (!tags) {
+-      return NextResponse.json({ message: 'Ignored', type: body?._type ?? null }, { status: 200 });
+-    }
++    const { isValidSignature, body } = await parseBody<WebhookBody>(request, secret, true);
++    if (!isValidSignature) return NextResponse.json({ message: 'Invalid signature' }, { status: 401 });
++    const tags = body ? [...new Set(tagsFor(body))] : [];
++    if (!tags.length) return NextResponse.json({ message: 'Ignored', type: body?._type ?? null });
+     for (const tag of tags) revalidateTag(tag, { expire: 0 });
+     return NextResponse.json({ revalidated: tags, now: Date.now() });
+   } catch (error) {
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/components/checkout/CheckoutForm.tsx cur/tene-mashkaot/src/components/checkout/CheckoutForm.tsx
+--- cmp/b/tene-mashkaot/src/components/checkout/CheckoutForm.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/components/checkout/CheckoutForm.tsx	2026-09-30 13:46:39.000000000 +0000
+@@ -47,7 +47,7 @@
+   );
+ }
+ 
+-export function CheckoutForm({ pickupAddress }: { pickupAddress: string }) {
++export function CheckoutForm({ pickupAddress, cardPaymentsEnabled = false }: { pickupAddress: string; cardPaymentsEnabled?: boolean }) {
+   const t = useTranslations('checkout');
+   const tErr = useTranslations('checkout.errors');
+   const tCommon = useTranslations('common');
+@@ -62,6 +62,7 @@
+   const [phone, setPhone] = useState('');
+   const [email, setEmail] = useState('');
+   const [fulfillment, setFulfillment] = useState<'delivery' | 'pickup'>('delivery');
++  const [paymentMethod, setPaymentMethod] = useState<'card' | 'onDelivery'>(cardPaymentsEnabled ? 'card' : 'onDelivery');
+   const [zoneId, setZoneId] = useState('');
+   const [street, setStreet] = useState('');
+   const [apartment, setApartment] = useState('');
+@@ -155,6 +156,7 @@
+         result = await placeOrder({
+           items: toQuoteItems(items),
+           fulfillment,
++          paymentMethod,
+           zoneId: fulfillment === 'delivery' ? effectiveZoneId : null,
+           name,
+           phone,
+@@ -185,6 +187,11 @@
+           // Session storage unavailable; the success page still shows the order number from the URL.
+         }
+         clear();
++        if (result.paymentUrl) {
++          // Full navigation to the hosted, PCI-compliant payment page (Morning / Grow).
++          window.location.assign(result.paymentUrl);
++          return;
++        }
+         router.push(`/order/${result.orderNumber}`);
+         return;
+       }
+@@ -501,14 +508,42 @@
+           <p className="rounded-xl bg-gold-400/10 px-3 py-2 text-sm text-gold-100">🎁 {localize(totals.gifts.earned[0].gift ?? totals.gifts.earned[0].title, lang)}</p>
+         )}
+ 
++        {cardPaymentsEnabled && (
++          <fieldset className="space-y-2">
++            <legend className="mb-2 text-sm font-semibold text-cream/85">{t('payment')}</legend>
++            {(['card', 'onDelivery'] as const).map((option) => (
++              <label
++                key={option}
++                className={cn(
++                  'flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition',
++                  paymentMethod === option ? 'border-gold-400 bg-gold-400/10' : 'border-gold-400/20 hover:border-gold-400/50',
++                )}
++              >
++                <input
++                  type="radio"
++                  name="paymentMethod"
++                  value={option}
++                  checked={paymentMethod === option}
++                  onChange={() => setPaymentMethod(option)}
++                  className="mt-1 accent-[#d4a95a]"
++                />
++                <span>
++                  <span className="block font-semibold">{t(option === 'card' ? 'payCard' : 'payOnDelivery')}</span>
++                  <span className="block text-xs text-cream/65">{t(option === 'card' ? 'payCardHint' : 'payOnDeliveryHint')}</span>
++                </span>
++              </label>
++            ))}
++          </fieldset>
++        )}
++
+         <button
+           type="submit"
+           disabled={pending || blocked || hasInvalidItems || !quote || (totals ? !totals.meetsMinOrder : false)}
+           className={cn(buttonStyles.primary, 'w-full py-4 text-lg')}
+         >
+-          {pending ? t('submitting') : t('submit')}
++          {pending ? t('submitting') : paymentMethod === 'card' ? t('submitPay') : t('submit')}
+         </button>
+-        <p className="text-center text-xs text-cream/60">{t('paymentNote')}</p>
++        <p className="text-center text-xs text-cream/60">{paymentMethod === 'card' ? t('paymentNoteCard') : t('paymentNote')}</p>
+       </aside>
+     </form>
+   );
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/components/checkout/OrderSuccess.tsx cur/tene-mashkaot/src/components/checkout/OrderSuccess.tsx
+--- cmp/b/tene-mashkaot/src/components/checkout/OrderSuccess.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/components/checkout/OrderSuccess.tsx	2026-09-30 13:46:39.000000000 +0000
+@@ -6,6 +6,7 @@
+ import { buttonStyles, cn } from '@/lib/cn';
+ import { StarIcon, WhatsAppIcon } from '../ui/icons';
+ import { LAST_ORDER_KEY } from '@/lib/order-storage';
++import { PaymentStatusRefresher } from './PaymentStatusRefresher';
+ 
+ interface StoredOrder {
+   orderNumber: string;
+@@ -27,7 +28,48 @@
+ 
+ const subscribe = () => () => {};
+ 
+-export function OrderSuccess({ orderNumber, fallbackWhatsapp }: { orderNumber: string; fallbackWhatsapp: string }) {
++export interface OrderPaymentView {
++  method?: 'card' | 'onDelivery';
++  status?: string;
++  receiptUrl?: string;
++  /** Where Morning redirected the customer: `?payment=success|failed`. */
++  result?: 'success' | 'failed';
++}
++
++function PaymentPanel({ payment }: { payment: OrderPaymentView }) {
++  const t = useTranslations('order');
++  const tCommon = useTranslations('common');
++  if (payment.method !== 'card') return null;
++  const { status, result } = payment;
++  const tone =
++    status === 'paid' || status === 'review'
++      ? 'border-emerald-400/40 bg-emerald-950/40 text-emerald-100'
++      : status === 'failed' || result === 'failed'
++        ? 'border-red-400/50 bg-red-950/40 text-red-100'
++        : 'border-gold-400/30 bg-wine-900/60 text-gold-100';
++  let title: string;
++  let body: string;
++  if (status === 'paid') [title, body] = [t('paymentPaid'), t('paymentPaidBody')];
++  else if (status === 'review') [title, body] = [t('paymentReview'), t('paymentReviewBody')];
++  else if (status === 'failed' || result === 'failed') [title, body] = [t('paymentFailed'), t('paymentFailedBody')];
++  else [title, body] = [t('paymentVerifying'), t('paymentVerifyingBody')];
++  const waiting = status === 'pending' && result === 'success';
++  return (
++    <div role="status" aria-live="polite" className={cn('mx-auto mt-8 max-w-xl rounded-2xl border px-5 py-4 text-start', tone)}>
++      <p className="font-semibold">{title}</p>
++      <p className="mt-1 text-sm opacity-90">{body}</p>
++      {status === 'paid' && payment.receiptUrl?.startsWith('https://') && (
++        <a href={payment.receiptUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm font-semibold underline underline-offset-4">
++          {t('viewReceipt')}
++          <span className="sr-only">{tCommon('newTab')}</span>
++        </a>
++      )}
++      {waiting && <PaymentStatusRefresher />}
++    </div>
++  );
++}
++
++export function OrderSuccess({ orderNumber, fallbackWhatsapp, payment = {} }: { orderNumber: string; fallbackWhatsapp: string; payment?: OrderPaymentView }) {
+   const t = useTranslations('order');
+   const tCommon = useTranslations('common');
+   const raw = useSyncExternalStore(
+@@ -43,6 +85,7 @@
+       <StarIcon className="mx-auto h-12 w-12 text-gold-400" />
+       <h1 className="font-display text-gold-gradient mt-4 text-4xl sm:text-5xl">{t('successTitle')}</h1>
+       <p className="mt-4 text-xl font-semibold text-gold-200">{t('successBody', { number: orderNumber })}</p>
++      <PaymentPanel payment={payment} />
+       <p className="mt-6 text-cream/80">{stored ? t('nextSteps') : t('noSummary')}</p>
+ 
+       {stored && (
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/components/checkout/PaymentStatusRefresher.tsx cur/tene-mashkaot/src/components/checkout/PaymentStatusRefresher.tsx
+--- cmp/b/tene-mashkaot/src/components/checkout/PaymentStatusRefresher.tsx	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/components/checkout/PaymentStatusRefresher.tsx	2026-09-30 13:46:39.000000000 +0000
+@@ -0,0 +1,22 @@
++'use client';
++
++import { useRouter } from 'next/navigation';
++import { useEffect } from 'react';
++
++/** Re-renders the order page every few seconds (bounded) while Morning's payment notice is on its way. */
++export function PaymentStatusRefresher({ intervalMs = 3000, maxAttempts = 20 }: { intervalMs?: number; maxAttempts?: number }) {
++  const router = useRouter();
++  useEffect(() => {
++    let attempts = 0;
++    const timer = window.setInterval(() => {
++      attempts += 1;
++      if (attempts > maxAttempts) {
++        window.clearInterval(timer);
++        return;
++      }
++      router.refresh();
++    }, intervalMs);
++    return () => window.clearInterval(timer);
++  }, [router, intervalMs, maxAttempts]);
++  return null;
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/data.ts cur/tene-mashkaot/src/lib/data.ts
+--- cmp/b/tene-mashkaot/src/lib/data.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/lib/data.ts	2026-09-30 13:42:19.000000000 +0000
+@@ -1,6 +1,6 @@
+ import 'server-only';
+ import { cache } from 'react';
+-import { CACHE_TAGS, sanityFetch, sanityFetchFresh } from '@/sanity/lib/fetch';
++import { CACHE_TAGS, legalTag, productTag, sanityFetch, sanityFetchFresh } from '@/sanity/lib/fetch';
+ import {
+   CATEGORIES_QUERY,
+   DELIVERY_SETTINGS_QUERY,
+@@ -65,7 +65,7 @@
+ });
+ 
+ export const getCategories = cache(async (): Promise<Category[]> => {
+-  const categories = await sanityFetch<Category[]>({ query: CATEGORIES_QUERY, tags: [CACHE_TAGS.catalog] });
++  const categories = await sanityFetch<Category[]>({ query: CATEGORIES_QUERY, tags: [CACHE_TAGS.categories] });
+   return categories?.length ? categories : DEFAULT_CATEGORIES;
+ });
+ 
+@@ -73,18 +73,18 @@
+   const products = await sanityFetch<Product[]>({
+     query: PRODUCTS_QUERY,
+     params: { category: category ?? null },
+-    tags: [CACHE_TAGS.catalog],
++    tags: [CACHE_TAGS.products],
+   });
+   return products ?? [];
+ });
+ 
+ export const getFeaturedProducts = cache(async (): Promise<Product[]> => {
+-  const products = await sanityFetch<Product[]>({ query: FEATURED_PRODUCTS_QUERY, tags: [CACHE_TAGS.catalog] });
++  const products = await sanityFetch<Product[]>({ query: FEATURED_PRODUCTS_QUERY, tags: [CACHE_TAGS.products] });
+   return products ?? [];
+ });
+ 
+ export const getProductBySlug = cache(async (slug: string): Promise<Product | null> => {
+-  return sanityFetch<Product>({ query: PRODUCT_BY_SLUG_QUERY, params: { slug }, tags: [CACHE_TAGS.catalog] });
++  return sanityFetch<Product>({ query: PRODUCT_BY_SLUG_QUERY, params: { slug }, tags: [productTag(slug)] });
+ });
+ 
+ export const getRelatedProducts = cache(async (product: Product): Promise<Product[]> => {
+@@ -92,13 +92,13 @@
+   const products = await sanityFetch<Product[]>({
+     query: RELATED_PRODUCTS_QUERY,
+     params: { categoryId: product.category._id, id: product._id },
+-    tags: [CACHE_TAGS.catalog],
++    tags: [CACHE_TAGS.products],
+   });
+   return products ?? [];
+ });
+ 
+ export async function getProductSlugs(): Promise<{ slug: string; _updatedAt: string }[]> {
+-  return (await sanityFetch<{ slug: string; _updatedAt: string }[]>({ query: PRODUCT_SLUGS_QUERY, tags: [CACHE_TAGS.catalog] })) ?? [];
++  return (await sanityFetch<{ slug: string; _updatedAt: string }[]>({ query: PRODUCT_SLUGS_QUERY, tags: [CACHE_TAGS.products] })) ?? [];
+ }
+ 
+ export const getPromotions = cache(async (): Promise<Promotion[]> => {
+@@ -107,7 +107,7 @@
+ });
+ 
+ export const getLegalPage = cache(async (slug: string): Promise<LegalPage | null> => {
+-  return sanityFetch<LegalPage>({ query: LEGAL_PAGE_QUERY, params: { slug }, tags: [CACHE_TAGS.legal] });
++  return sanityFetch<LegalPage>({ query: LEGAL_PAGE_QUERY, params: { slug }, tags: [legalTag(slug)] });
+ });
+ 
+ /** Fresh, uncached reads for server-side price verification at checkout. */
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/format.ts cur/tene-mashkaot/src/lib/format.ts
+--- cmp/b/tene-mashkaot/src/lib/format.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/lib/format.ts	2026-09-30 13:50:29.000000000 +0000
+@@ -22,3 +22,8 @@
+ export function fromAgorot(agorot: number): number {
+   return Math.round(agorot) / 100;
+ }
++
++/** Price without the invisible bidi marks Intl adds for Hebrew – safe inside an explicit LTR isolate. */
++export function plainPrice(amount: number, locale: string): string {
++  return formatPrice(amount, locale).replace(/[\u061c\u200e\u200f\u2066-\u2069]/g, '');
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/order-status.ts cur/tene-mashkaot/src/lib/order-status.ts
+--- cmp/b/tene-mashkaot/src/lib/order-status.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/lib/order-status.ts	2026-09-30 13:44:51.000000000 +0000
+@@ -0,0 +1,20 @@
++/** Shared by the Studio schema, the Sheets export and e-mails (no Sanity imports here). */
++export const ORDER_STATUS_OPTIONS = [
++  { title: '🆕 חדשה', value: 'new' },
++  { title: '✅ אושרה', value: 'confirmed' },
++  { title: '🚚 במשלוח', value: 'outForDelivery' },
++  { title: '📦 נמסרה', value: 'delivered' },
++  { title: '❌ בוטלה', value: 'cancelled' },
++];
++
++export const PAYMENT_STATUS_OPTIONS = [
++  { title: '⏳ ממתין לתשלום באשראי', value: 'pending' },
++  { title: '💵 טרם שולם (תשלום במסירה)', value: 'unpaid' },
++  { title: '✅ שולם', value: 'paid' },
++  { title: '⚠️ לבדיקה', value: 'review' },
++  { title: '❌ התשלום נכשל', value: 'failed' },
++  { title: '↩️ זוכה', value: 'refunded' },
++];
++
++export const label = (options: { title: string; value: string }[], value?: string | null) =>
++  options.find((option) => option.value === value)?.title.replace(/^\S+\s/, '') ?? value ?? '';
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/order-summary.ts cur/tene-mashkaot/src/lib/order-summary.ts
+--- cmp/b/tene-mashkaot/src/lib/order-summary.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/lib/order-summary.ts	2026-09-30 13:38:31.000000000 +0000
+@@ -32,6 +32,7 @@
+   couponDiscount: number;
+   deliveryFee: number;
+   total: number;
++  paymentMethod?: 'card' | 'onDelivery';
+ }
+ 
+ const COLOR_LABELS: Record<string, { he: string; en: string }> = {
+@@ -84,6 +85,7 @@
+     total: 'סה"כ לתשלום',
+     notes: 'הערות',
+     payment: 'התשלום יתבצע בטלפון או בעת המסירה',
++    paymentCard: 'תשלום באשראי באתר (דף תשלום מאובטח)',
+   },
+   en: {
+     title: 'New order',
+@@ -109,6 +111,7 @@
+     total: 'Total to pay',
+     notes: 'Notes',
+     payment: 'Payment by phone or upon delivery',
++    paymentCard: 'Card payment on the website (secure payment page)',
+   },
+ } as const;
+ 
+@@ -142,6 +145,6 @@
+   if (order.fulfillment === 'delivery') rows.push(`${t.deliveryFee}: ${order.deliveryFee > 0 ? price(order.deliveryFee) : t.free}`);
+   rows.push(`*${t.total}: ${price(order.total)}*`);
+   if (order.notes) rows.push('', `${t.notes}: ${order.notes}`);
+-  rows.push('', t.payment);
++  rows.push('', order.paymentMethod === 'card' ? t.paymentCard : t.payment);
+   return rows.join('\n');
+ }
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/server/csv.ts cur/tene-mashkaot/src/lib/server/csv.ts
+--- cmp/b/tene-mashkaot/src/lib/server/csv.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/lib/server/csv.ts	2026-09-30 13:38:31.000000000 +0000
+@@ -0,0 +1,40 @@
++import 'server-only';
++
++/**
++ * CSV for Google Sheets. Identifiers, phones and dates get a LEFT-TO-RIGHT MARK (U+200E) prefix so
++ * Sheets keeps them as text (no lost leading zeros, no date/number reformatting, no RTL flipping).
++ * Money stays numeric so SUM() works. Any text that could start a formula is neutralized the same way.
++ */
++
++export const LRM = '\u200E';
++const FORMULA_START = /^[=+\-@\t\r]/;
++
++export type CsvKind = 'text' | 'lrm' | 'number';
++
++export interface CsvColumn<T> {
++  header: string;
++  kind: CsvKind;
++  value: (row: T) => string | number | null | undefined;
++}
++
++function quote(value: string): string {
++  return `"${value.replace(/"/g, '""')}"`;
++}
++
++function cell(value: string | number | null | undefined, kind: CsvKind): string {
++  if (value === null || value === undefined || value === '') return '';
++  if (kind === 'number') {
++    const n = typeof value === 'number' ? value : Number(value);
++    return Number.isFinite(n) ? String(n) : '';
++  }
++  let text = String(value).replace(/\r\n?/g, '\n');
++  if (kind === 'lrm' || FORMULA_START.test(text)) text = `${LRM}${text}`;
++  return quote(text);
++}
++
++export function toCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
++  const header = columns.map((column) => quote(column.header)).join(',');
++  const body = rows.map((row) => columns.map((column) => cell(column.value(row), column.kind)).join(','));
++  // BOM so Excel also opens Hebrew correctly; the Apps Script strips it.
++  return `\uFEFF${[header, ...body].join('\r\n')}\r\n`;
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/server/email-templates.ts cur/tene-mashkaot/src/lib/server/email-templates.ts
+--- cmp/b/tene-mashkaot/src/lib/server/email-templates.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/lib/server/email-templates.ts	2026-09-30 13:50:29.000000000 +0000
+@@ -0,0 +1,296 @@
++import 'server-only';
++import { SITE_URL } from '../defaults';
++import { plainPrice } from '../format';
++import { colorLabel, formatSlot, type OrderSummary } from '../order-summary';
++import type { EventInquiryInput } from '../validation';
++
++/**
++ * Bulletproof RTL e-mail templates:
++ * - table layout with "ghost tables" (MSO conditional comments) so Outlook keeps the 600px column;
++ * - dir/align set on every table and cell, because many clients ignore inherited direction;
++ * - every number, phone, price, date and order number isolated as LTR so mobile clients never flip it;
++ * - VML buttons for Outlook, a hidden preheader, and inline styles only.
++ */
++
++export interface RenderedEmail {
++  subject: string;
++  html: string;
++  text: string;
++}
++
++const FONT = 'Arial,Helvetica,sans-serif';
++const WINE = '#5a1a22';
++const GOLD = '#b58d4f';
++const LTR_STYLE = 'direction:ltr;unicode-bidi:isolate;';
++
++export function escapeHtml(value: string): string {
++  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
++}
++
++/** A value that must always read left-to-right (phone, price, order number…). */
++export function ltr(value: string | number): string {
++  return `<span dir="ltr" style="${LTR_STYLE}">${escapeHtml(String(value))}</span>`;
++}
++
++const NUMBER_RUN = /(?:₪\s?)?\+?\d[\d\s:./\-–,]*\d(?:\s?₪)?|\d/g;
++
++/** Escapes free text and wraps each run of digits (dates, times, amounts) in an LTR isolate. */
++export function textWithIsolatedNumbers(raw: string): string {
++  let out = '';
++  let last = 0;
++  for (const match of raw.matchAll(NUMBER_RUN)) {
++    const index = match.index ?? 0;
++    out += escapeHtml(raw.slice(last, index)) + ltr(match[0]);
++    last = index + match[0].length;
++  }
++  return out + escapeHtml(raw.slice(last)).replace(/\n/g, '<br>');
++}
++
++function internationalPhone(phone: string): string {
++  const digits = phone.replace(/\D/g, '');
++  return digits.startsWith('0') ? `972${digits.slice(1)}` : digits;
++}
++
++function cellStyle(extra = ''): string {
++  return `font-family:${FONT};font-size:15px;line-height:1.55;color:#1f1f1f;text-align:right;${extra}`;
++}
++
++function detailsTable(rows: [string, string | undefined][]): string {
++  const body = rows
++    .filter(([, value]) => value)
++    .map(
++      ([label, value]) =>
++        `<tr><td dir="rtl" align="right" valign="top" width="120" style="${cellStyle('padding:6px 0 6px 12px;color:#6b6b6b;font-weight:bold;white-space:nowrap;')}">${escapeHtml(label)}</td><td dir="rtl" align="right" valign="top" style="${cellStyle('padding:6px 0;')}">${value}</td></tr>`,
++    )
++    .join('');
++  return `<table role="presentation" dir="rtl" width="100%" cellpadding="0" cellspacing="0" border="0">${body}</table>`;
++}
++
++function section(inner: string, extra = ''): string {
++  return `<tr><td class="px" dir="rtl" align="right" style="padding:8px 32px 16px;text-align:right;${extra}">${inner}</td></tr>`;
++}
++
++function sectionTitle(title: string): string {
++  return `<p style="margin:12px 0 8px;font-family:${FONT};font-size:13px;font-weight:bold;letter-spacing:.04em;color:${GOLD};text-align:right;">${escapeHtml(title)}</p>`;
++}
++
++function notice(text: string, tone: 'info' | 'warn' | 'ok'): string {
++  const colors = { info: ['#f7efe0', '#6b4e16'], warn: ['#fdecea', '#8a1c1c'], ok: ['#e8f5ec', '#1d5f36'] }[tone];
++  return `<table role="presentation" dir="rtl" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td dir="rtl" align="right" style="${cellStyle(`background:${colors[0]};color:${colors[1]};font-weight:bold;padding:12px 16px;border-radius:8px;`)}">${text}</td></tr></table>`;
++}
++
++/** Outlook-safe button: VML for Word-rendered Outlook, a styled link everywhere else. */
++function button(href: string, label: string, color: string): string {
++  const safeHref = escapeHtml(href);
++  const safeLabel = escapeHtml(label);
++  return `<table role="presentation" dir="rtl" align="right" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 6px 8px;display:inline-table;"><tr><td align="center">
++<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${safeHref}" style="height:44px;v-text-anchor:middle;width:220px;" arcsize="18%" stroke="f" fillcolor="${color}"><w:anchorlock/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">${safeLabel}</center></v:roundrect><![endif]-->
++<!--[if !mso]><!-- --><a href="${safeHref}" target="_blank" style="background:${color};border-radius:8px;color:#ffffff;display:inline-block;font-family:${FONT};font-size:15px;font-weight:bold;line-height:44px;text-align:center;text-decoration:none;width:220px;-webkit-text-size-adjust:none;mso-hide:all;">${safeLabel}</a><!--<![endif]-->
++</td></tr></table>`;
++}
++
++function layout({ title, preheader, heading, sections }: { title: string; preheader: string; heading: string; sections: string[] }): string {
++  return `<!DOCTYPE html>
++<html lang="he" dir="rtl" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<meta http-equiv="X-UA-Compatible" content="IE=edge">
++<meta name="x-apple-disable-message-reformatting">
++<meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
++<meta name="color-scheme" content="light only">
++<meta name="supported-color-schemes" content="light only">
++<title>${escapeHtml(title)}</title>
++<!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><style>table,td,p,a,span{font-family:Arial,sans-serif !important;}</style><![endif]-->
++<style>
++body{margin:0;padding:0;width:100%!important;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
++table{border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;}
++a[x-apple-data-detectors]{color:inherit!important;text-decoration:none!important;font-size:inherit!important;font-family:inherit!important;font-weight:inherit!important;line-height:inherit!important;}
++@media (max-width:620px){.container{width:100%!important;}.px{padding-left:18px!important;padding-right:18px!important;}}
++</style>
++</head>
++<body dir="rtl" style="margin:0;padding:0;background:#f4efe6;">
++<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f4efe6;opacity:0;">${escapeHtml(preheader)}${'&#847;&zwnj;&nbsp;'.repeat(40)}</div>
++<table role="presentation" dir="rtl" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4efe6;">
++<tr><td align="center" style="padding:24px 10px;">
++<!--[if mso]><table role="presentation" dir="rtl" align="center" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
++<table role="presentation" class="container" dir="rtl" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:12px;">
++<tr><td class="px" dir="rtl" align="right" style="background:${WINE};border-radius:12px 12px 0 0;padding:20px 32px;text-align:right;">
++<p style="margin:0;font-family:${FONT};font-size:22px;font-weight:bold;color:#f1ddb2;">&#9733; תנא משקאות</p>
++<p style="margin:2px 0 0;font-family:${FONT};font-size:13px;color:#e3c58e;">חוויה של לגימה</p>
++</td></tr>
++<tr><td class="px" dir="rtl" align="right" style="padding:26px 32px 4px;text-align:right;">
++<h1 style="margin:0;font-family:${FONT};font-size:22px;line-height:1.35;color:${WINE};text-align:right;">${heading}</h1>
++</td></tr>
++${sections.join('\n')}
++<tr><td class="px" dir="rtl" align="right" style="padding:18px 32px 26px;border-top:1px solid #eeeeee;text-align:right;">
++<p style="margin:0;font-family:${FONT};font-size:12px;line-height:1.5;color:#8a8a8a;">הודעה אוטומטית מאתר תנא משקאות · ${ltr(SITE_URL.replace(/^https?:\/\//, ''))}</p>
++</td></tr>
++</table>
++<!--[if mso]></td></tr></table><![endif]-->
++</td></tr>
++</table>
++</body>
++</html>`;
++}
++
++function itemsTable(order: OrderSummary): string {
++  const price = (n: number) => ltr(plainPrice(n, 'he'));
++  const rows = order.lines
++    .map((line) => {
++      const extras = [
++        line.ribbonColor ? `סרט: ${colorLabel(line.ribbonColor, 'he')}` : '',
++        line.balloonColor ? `בלון: ${colorLabel(line.balloonColor, 'he')}` : '',
++        line.balloonText ? `טקסט על הבלון: ${line.balloonText}` : '',
++        line.dedication ? `הקדשה: ${line.dedication}` : '',
++      ].filter(Boolean);
++      const extraHtml = extras.length
++        ? `<br><span style="font-size:13px;color:#6b6b6b;">${extras.map((e) => textWithIsolatedNumbers(e)).join('<br>')}</span>`
++        : '';
++      return `<tr>
++<td dir="rtl" align="right" valign="top" style="${cellStyle('padding:10px 0 10px 8px;border-bottom:1px solid #f0ebe3;')}">${escapeHtml(line.title)}${extraHtml}</td>
++<td dir="rtl" align="center" valign="top" width="56" style="${cellStyle('padding:10px 4px;border-bottom:1px solid #f0ebe3;text-align:center;')}">${ltr(`× ${line.quantity}`)}</td>
++<td dir="rtl" align="left" valign="top" width="90" style="${cellStyle('padding:10px 0;border-bottom:1px solid #f0ebe3;text-align:left;white-space:nowrap;')}">${price(line.lineTotal)}</td>
++</tr>`;
++    })
++    .join('');
++  const totals: [string, string, boolean?][] = [['סכום פריטים', price(order.itemsTotal)]];
++  if (order.couponDiscount > 0) totals.push([`הנחה${order.couponCode ? ` (${order.couponCode})` : ''}`, ltr(`-${plainPrice(order.couponDiscount, 'he')}`)]);
++  if (order.fulfillment === 'delivery') totals.push(['משלוח', order.deliveryFee > 0 ? price(order.deliveryFee) : 'חינם']);
++  totals.push(['סה״כ לתשלום', price(order.total), true]);
++  const totalRows = totals
++    .map(
++      ([label, value, strong]) =>
++        `<tr><td dir="rtl" align="right" colspan="2" style="${cellStyle(`padding:6px 0;${strong ? `font-weight:bold;font-size:17px;color:${WINE};` : 'color:#555555;'}`)}">${escapeHtml(label)}</td><td dir="rtl" align="left" style="${cellStyle(`padding:6px 0;text-align:left;white-space:nowrap;${strong ? `font-weight:bold;font-size:17px;color:${WINE};` : ''}`)}">${value}</td></tr>`,
++    )
++    .join('');
++  return `<table role="presentation" dir="rtl" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}${totalRows}</table>`;
++}
++
++export function renderNewOrderEmail(
++  order: OrderSummary,
++  meta: { stored: boolean; orderId?: string; paymentMethod: 'card' | 'onDelivery' },
++): RenderedEmail {
++  const card = meta.paymentMethod === 'card';
++  const slot = formatSlot(order.slotStart, order.slotEnd, 'he');
++  const address = order.fulfillment === 'delivery' ? [order.street, order.apartment, order.city].filter(Boolean).join(', ') : undefined;
++  const phoneIntl = internationalPhone(order.phone);
++  const greeting = encodeURIComponent(`שלום ${order.customerName}, כאן תנא משקאות לגבי הזמנה ${order.orderNumber}`);
++  const buttons = [
++    button(`https://wa.me/${phoneIntl}?text=${greeting}`, 'וואטסאפ ללקוח', '#1f9d55'),
++    meta.orderId && meta.stored ? button(`${SITE_URL}/studio/intent/edit/id=${meta.orderId};type=order`, 'פתיחה במערכת הניהול', WINE) : '',
++  ].join('');
++
++  const sections = [
++    section(
++      notice(card ? '💳 תשלום באשראי באתר – ממתין לאישור התשלום' : '💵 תשלום במסירה / באיסוף', card ? 'info' : 'ok') +
++        (meta.stored ? '' : `<div style="height:8px;line-height:8px;">&nbsp;</div>${notice('⚠️ ההזמנה לא נשמרה במערכת הניהול – יש לטפל בה ישירות מהמייל הזה.', 'warn')}`),
++    ),
++    section(
++      sectionTitle('פרטי הלקוח') +
++        detailsTable([
++          ['שם', escapeHtml(order.customerName)],
++          ['טלפון', `<a href="tel:+${phoneIntl}" style="color:${WINE};text-decoration:none;">${ltr(order.phone)}</a>`],
++          ['מייל', order.email ? ltr(order.email) : undefined],
++          ['אופן קבלה', order.fulfillment === 'delivery' ? 'משלוח עד הבית' : 'איסוף עצמי מהחנות'],
++          ['כתובת', address ? textWithIsolatedNumbers(address) : undefined],
++          ['מועד', textWithIsolatedNumbers(slot)],
++          ['הערות', order.notes ? textWithIsolatedNumbers(order.notes) : undefined],
++        ]),
++    ),
++    section(sectionTitle('פריטים') + itemsTable(order) + (order.gifts.length ? `<p style="${cellStyle('margin:10px 0 0;')}">🎁 ${escapeHtml(order.gifts.join(', '))}</p>` : '')),
++    section(buttons, 'padding-top:4px;'),
++  ];
++
++  return {
++    subject: `${meta.stored ? '' : '⚠️ '}הזמנה חדשה ${order.orderNumber} – ${order.customerName}${card ? ' (אשראי)' : ''}`,
++    html: layout({
++      title: `הזמנה ${order.orderNumber}`,
++      preheader: `${order.customerName} · ${plainPrice(order.total, 'he')} · ${slot}`,
++      heading: `הזמנה חדשה ${ltr(order.orderNumber)}`,
++      sections,
++    }),
++    text: '',
++  };
++}
++
++export function renderOrderPaidEmail(info: {
++  orderNumber: string;
++  orderId: string;
++  total: number;
++  verified: boolean;
++  documentNumber?: string;
++  documentUrl?: string;
++}): RenderedEmail {
++  const buttons = [
++    info.documentUrl ? button(info.documentUrl, 'צפייה בקבלה', '#1f9d55') : '',
++    button(`${SITE_URL}/studio/intent/edit/id=${info.orderId};type=order`, 'פתיחה במערכת הניהול', WINE),
++  ].join('');
++  const sections = [
++    section(
++      info.verified
++        ? notice(`✅ התשלום אומת מול Morning: ${ltr(plainPrice(info.total, 'he'))}`, 'ok')
++        : notice('⚠️ התקבלה הודעת תשלום שלא ניתן היה לאמת אוטומטית. יש לבדוק את העסקה ב־Morning לפני משלוח.', 'warn'),
++    ),
++    section(
++      detailsTable([
++        ['הזמנה', ltr(info.orderNumber)],
++        ['סכום', ltr(plainPrice(info.total, 'he'))],
++        ['מסמך', info.documentNumber ? ltr(info.documentNumber) : undefined],
++      ]),
++    ),
++    section(buttons),
++  ];
++  return {
++    subject: `${info.verified ? '✅ שולם' : '⚠️ לבדיקה'} – הזמנה ${info.orderNumber}`,
++    html: layout({ title: `תשלום להזמנה ${info.orderNumber}`, preheader: `תשלום בסך ${plainPrice(info.total, 'he')}`, heading: `תשלום התקבל להזמנה ${ltr(info.orderNumber)}`, sections }),
++    text: [
++      `${info.verified ? 'התשלום אומת' : 'התקבלה הודעת תשלום לבדיקה'} – הזמנה ${info.orderNumber}`,
++      `סכום: ${plainPrice(info.total, 'he')}`,
++      info.documentNumber ? `מסמך: ${info.documentNumber}` : '',
++      info.documentUrl ?? '',
++    ]
++      .filter(Boolean)
++      .join('\n'),
++  };
++}
++
++export function renderEventInquiryEmail(inquiry: EventInquiryInput, meta: { stored: boolean }): RenderedEmail {
++  const phoneIntl = internationalPhone(inquiry.phone);
++  const greeting = encodeURIComponent(`שלום ${inquiry.name}, כאן תנא משקאות לגבי האירוע שלכם`);
++  const sections = [
++    meta.stored ? '' : section(notice('⚠️ הפנייה לא נשמרה במערכת הניהול – יש לטפל בה ישירות מהמייל הזה.', 'warn')),
++    section(
++      detailsTable([
++        ['שם', escapeHtml(inquiry.name)],
++        ['טלפון', `<a href="tel:+${phoneIntl}" style="color:${WINE};text-decoration:none;">${ltr(inquiry.phone)}</a>`],
++        ['מייל', inquiry.email ? ltr(inquiry.email) : undefined],
++        ['סוג אירוע', escapeHtml(inquiry.eventType)],
++        ['תאריך', ltr(inquiry.eventDate.split('-').reverse().join('.'))],
++        ['משתתפים', inquiry.guests ? ltr(inquiry.guests) : undefined],
++        ['תקציב', inquiry.budget ? ltr(plainPrice(inquiry.budget, 'he')) : undefined],
++        ['הודעה', inquiry.message ? textWithIsolatedNumbers(inquiry.message) : undefined],
++      ]),
++    ),
++    section(button(`https://wa.me/${phoneIntl}?text=${greeting}`, 'וואטסאפ לפונה', '#1f9d55')),
++  ].filter(Boolean);
++  const text = [
++    'פנייה חדשה לאירוע',
++    `שם: ${inquiry.name}`,
++    `טלפון: ${inquiry.phone}`,
++    inquiry.email ? `מייל: ${inquiry.email}` : '',
++    `סוג אירוע: ${inquiry.eventType}`,
++    `תאריך: ${inquiry.eventDate}`,
++    inquiry.guests ? `משתתפים: ${inquiry.guests}` : '',
++    inquiry.budget ? `תקציב: ₪${inquiry.budget}` : '',
++    inquiry.message ? `\nהודעה:\n${inquiry.message}` : '',
++    meta.stored ? '' : '\n⚠️ הפנייה לא נשמרה במערכת הניהול.',
++  ]
++    .filter(Boolean)
++    .join('\n');
++  return {
++    subject: `פנייה לאירוע – ${inquiry.name}`,
++    html: layout({ title: 'פנייה לאירוע', preheader: `${inquiry.eventType} · ${inquiry.eventDate}`, heading: 'פנייה חדשה לאירוע', sections }),
++    text,
++  };
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/server/email.ts cur/tene-mashkaot/src/lib/server/email.ts
+--- cmp/b/tene-mashkaot/src/lib/server/email.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/lib/server/email.ts	2026-09-30 13:40:13.000000000 +0000
+@@ -2,41 +2,32 @@
+ import { Resend } from 'resend';
+ import { buildOrderText, type OrderSummary } from '../order-summary';
+ import type { EventInquiryInput } from '../validation';
++import { renderEventInquiryEmail, renderNewOrderEmail, renderOrderPaidEmail, type RenderedEmail } from './email-templates';
+ 
+ const apiKey = process.env.RESEND_API_KEY;
+ const resend = apiKey ? new Resend(apiKey) : null;
+ 
+-function escapeHtml(value: string): string {
+-  return value
+-    .replace(/&/g, '&amp;')
+-    .replace(/</g, '&lt;')
+-    .replace(/>/g, '&gt;')
+-    .replace(/"/g, '&quot;')
+-    .replace(/'/g, '&#39;');
+-}
+-
+-function textToHtml(text: string, dir: 'rtl' | 'ltr'): string {
+-  const body = escapeHtml(text)
+-    .replace(/\*(.+?)\*/g, '<strong>$1</strong>')
+-    .replace(/\n/g, '<br>');
+-  return `<!doctype html><html dir="${dir}"><body style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1a1a1a;background:#faf7f2;padding:24px">
+-<div style="max-width:560px;margin:0 auto;background:#fff;border-top:6px solid #5A1A22;padding:24px;border-radius:8px">${body}</div></body></html>`;
+-}
+-
+-async function send(subject: string, text: string, replyTo?: string): Promise<boolean> {
++/**
++ * Without a verified domain, Resend only delivers to the account owner's own address
++ * (sender onboarding@resend.dev) – enough for store alerts until the site has its own domain.
++ */
++async function send(email: RenderedEmail, replyTo?: string): Promise<boolean> {
+   const to = process.env.ORDERS_TO_EMAIL;
+-  const from = process.env.ORDERS_FROM_EMAIL;
+-  if (!resend || !to || !from) {
+-    console.warn('[email] Resend is not configured (RESEND_API_KEY / ORDERS_TO_EMAIL / ORDERS_FROM_EMAIL)');
++  const from = process.env.ORDERS_FROM_EMAIL || 'תנא משקאות <onboarding@resend.dev>';
++  if (!resend || !to) {
++    console.warn('[email] Resend is not configured (RESEND_API_KEY / ORDERS_TO_EMAIL)');
+     return false;
+   }
+   try {
+     const { error } = await resend.emails.send({
+       from,
+-      to: to.split(',').map((s) => s.trim()).filter(Boolean),
+-      subject,
+-      text,
+-      html: textToHtml(text, 'rtl'),
++      to: to
++        .split(',')
++        .map((s) => s.trim())
++        .filter(Boolean),
++      subject: email.subject,
++      html: email.html,
++      text: email.text,
+       replyTo,
+     });
+     if (error) {
+@@ -50,25 +41,19 @@
+   }
+ }
+ 
+-export async function sendOrderEmail(order: OrderSummary, { stored }: { stored: boolean }): Promise<boolean> {
+-  const hebrewCopy = buildOrderText({ ...order, locale: 'he' });
+-  const warning = stored ? '' : '⚠️ ההזמנה לא נשמרה במערכת הניהול – יש לטפל בה ישירות מהמייל הזה.\n\n';
+-  return send(`${stored ? '' : '⚠️ '}הזמנה חדשה ${order.orderNumber} – ${order.customerName}`, warning + hebrewCopy, order.email || undefined);
++export async function sendOrderEmail(
++  order: OrderSummary,
++  meta: { stored: boolean; orderId?: string; paymentMethod: 'card' | 'onDelivery' },
++): Promise<boolean> {
++  const email = renderNewOrderEmail(order, meta);
++  email.text = (meta.stored ? '' : '⚠️ ההזמנה לא נשמרה במערכת הניהול – יש לטפל בה ישירות מהמייל הזה.\n\n') + buildOrderText({ ...order, locale: 'he' });
++  return send(email, order.email || undefined);
++}
++
++export async function sendOrderPaidEmail(info: Parameters<typeof renderOrderPaidEmail>[0]): Promise<boolean> {
++  return send(renderOrderPaidEmail(info));
+ }
+ 
+-export async function sendEventInquiryEmail(inquiry: EventInquiryInput, { stored }: { stored: boolean }): Promise<boolean> {
+-  const rows = [
+-    '*פנייה חדשה לאירוע*',
+-    '',
+-    `שם: ${inquiry.name}`,
+-    `טלפון: ${inquiry.phone}`,
+-    inquiry.email ? `מייל: ${inquiry.email}` : '',
+-    `סוג אירוע: ${inquiry.eventType}`,
+-    `תאריך: ${inquiry.eventDate}`,
+-    inquiry.guests ? `משתתפים: ${inquiry.guests}` : '',
+-    inquiry.budget ? `תקציב: ₪${inquiry.budget}` : '',
+-    inquiry.message ? `\nהודעה:\n${inquiry.message}` : '',
+-    stored ? '' : '\n⚠️ הפנייה לא נשמרה במערכת הניהול.',
+-  ].filter(Boolean);
+-  return send(`פנייה לאירוע – ${inquiry.name}`, rows.join('\n'), inquiry.email || undefined);
++export async function sendEventInquiryEmail(inquiry: EventInquiryInput, meta: { stored: boolean }): Promise<boolean> {
++  return send(renderEventInquiryEmail(inquiry, meta), inquiry.email || undefined);
+ }
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/server/morning.ts cur/tene-mashkaot/src/lib/server/morning.ts
+--- cmp/b/tene-mashkaot/src/lib/server/morning.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/lib/server/morning.ts	2026-09-30 13:38:31.000000000 +0000
+@@ -0,0 +1,270 @@
++import 'server-only';
++
++/**
++ * Morning (Green Invoice) API: hosted payment pages for card payments (processed by Grow) and
++ * receipts for orders paid on delivery. Card data never touches this server.
++ * Docs: https://www.greeninvoice.co.il/api-docs  ·  API keys require the "Best" plan or above.
++ */
++
++type MorningEnv = 'production' | 'sandbox';
++
++const BASES: Record<MorningEnv, string> = {
++  production: 'https://api.greeninvoice.co.il/api/v1',
++  sandbox: 'https://sandbox.d.greeninvoice.co.il/api/v1',
++};
++
++/** 320 = חשבונית מס/קבלה (עוסק מורשה), 400 = קבלה (עוסק פטור). */
++export type MorningDocumentType = 320 | 400;
++/** 0 = prices before VAT, 1 = VAT included, 2 = VAT exempt. */
++type VatType = 0 | 1 | 2;
++
++interface MorningConfig {
++  id: string;
++  secret: string;
++  env: MorningEnv;
++  documentType: MorningDocumentType;
++  vatType: VatType;
++  pluginId?: string;
++}
++
++export class MorningError extends Error {
++  constructor(
++    message: string,
++    readonly status: number,
++    readonly body?: unknown,
++  ) {
++    super(message);
++    this.name = 'MorningError';
++  }
++}
++
++export function getMorningConfig(): MorningConfig | null {
++  const id = process.env.MORNING_API_KEY_ID;
++  const secret = process.env.MORNING_API_KEY_SECRET;
++  if (!id || !secret) return null;
++  const vat = Number(process.env.MORNING_VAT_TYPE ?? 1);
++  return {
++    id,
++    secret,
++    env: process.env.MORNING_ENV === 'sandbox' ? 'sandbox' : 'production',
++    documentType: process.env.MORNING_DOCUMENT_TYPE === '400' ? 400 : 320,
++    vatType: vat === 0 || vat === 2 ? vat : 1,
++    pluginId: process.env.MORNING_PAYMENT_PLUGIN_ID || undefined,
++  };
++}
++
++/** Card payments need the API keys and the secret that authenticates Morning's payment notifications. */
++export function isCardPaymentEnabled(): boolean {
++  return Boolean(getMorningConfig() && process.env.MORNING_WEBHOOK_SECRET && process.env.NEXT_PUBLIC_SITE_URL);
++}
++
++let tokenCache: { key: string; token: string; expires: number } | null = null;
++
++async function getToken(config: MorningConfig): Promise<string> {
++  const key = `${config.env}:${config.id}`;
++  if (tokenCache && tokenCache.key === key && tokenCache.expires > Date.now()) return tokenCache.token;
++  const res = await fetch(`${BASES[config.env]}/account/token`, {
++    method: 'POST',
++    headers: { 'Content-Type': 'application/json' },
++    body: JSON.stringify({ id: config.id, secret: config.secret }),
++    cache: 'no-store',
++    signal: AbortSignal.timeout(10_000),
++  });
++  if (!res.ok) throw new MorningError(`Morning auth failed (${res.status})`, res.status);
++  const data = (await res.json().catch(() => ({}))) as { token?: string };
++  const token = data.token ?? res.headers.get('X-Authorization-Bearer');
++  if (!token) throw new MorningError('Morning auth response had no token', 502);
++  // Tokens live ~30 minutes; refresh a little early.
++  tokenCache = { key, token, expires: Date.now() + 25 * 60_000 };
++  return token;
++}
++
++async function request<T>(config: MorningConfig, method: 'GET' | 'POST', path: string, body?: unknown, retried = false): Promise<T> {
++  const token = await getToken(config);
++  const res = await fetch(`${BASES[config.env]}${path}`, {
++    method,
++    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
++    body: body === undefined ? undefined : JSON.stringify(body),
++    cache: 'no-store',
++    signal: AbortSignal.timeout(15_000),
++  });
++  if (res.status === 401 && !retried) {
++    tokenCache = null;
++    return request<T>(config, method, path, body, true);
++  }
++  const text = await res.text();
++  let data: unknown = text;
++  try {
++    data = text ? JSON.parse(text) : undefined;
++  } catch {
++    // Non-JSON error body; keep the text for the log.
++  }
++  if (!res.ok) throw new MorningError(`Morning ${method} ${path} failed (${res.status})`, res.status, data);
++  return data as T;
++}
++
++function requireConfig(): MorningConfig {
++  const config = getMorningConfig();
++  if (!config) throw new MorningError('Morning is not configured (MORNING_API_KEY_ID / MORNING_API_KEY_SECRET)', 500);
++  return config;
++}
++
++const round2 = (n: number) => Math.round(n * 100) / 100;
++
++function pickString(source: unknown, keys: string[]): string | undefined {
++  if (!source || typeof source !== 'object') return undefined;
++  for (const key of keys) {
++    const value = (source as Record<string, unknown>)[key];
++    if (typeof value === 'string' && value) return value;
++    if (typeof value === 'number') return String(value);
++  }
++  return undefined;
++}
++
++function pickNumber(source: unknown, keys: string[]): number | undefined {
++  if (!source || typeof source !== 'object') return undefined;
++  for (const key of keys) {
++    const value = Number((source as Record<string, unknown>)[key]);
++    if (Number.isFinite(value)) return value;
++  }
++  return undefined;
++}
++
++/** Today's date in Israel as YYYY-MM-DD (Morning rejects future payment dates). */
++function israelDate(date = new Date()): string {
++  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
++}
++
++export interface MorningOrder {
++  orderNumber: string;
++  locale: 'he' | 'en';
++  customer: { name: string; phone: string; email?: string };
++  lines: { title: string; quantity: number; unitPrice: number }[];
++  deliveryFee: number;
++  couponDiscount: number;
++  total: number;
++}
++
++/**
++ * Document lines. Itemized when they add up exactly; a coupon discount is folded into one line,
++ * because negative lines are not accepted on every document type.
++ */
++function incomeLines(order: MorningOrder, vatType: VatType) {
++  const single = [{ description: `הזמנה ${order.orderNumber} – תנא משקאות`, quantity: 1, price: round2(order.total), currency: 'ILS', vatType }];
++  if (order.couponDiscount > 0) return single;
++  const lines = order.lines.map((line) => ({
++    description: line.title.slice(0, 250),
++    quantity: line.quantity,
++    price: round2(line.unitPrice),
++    currency: 'ILS',
++    vatType,
++  }));
++  if (order.deliveryFee > 0) lines.push({ description: 'משלוח', quantity: 1, price: round2(order.deliveryFee), currency: 'ILS', vatType });
++  const sum = round2(lines.reduce((acc, line) => acc + line.price * line.quantity, 0));
++  return Math.abs(sum - round2(order.total)) < 0.01 ? lines : single;
++}
++
++function clientFor(order: MorningOrder) {
++  return {
++    name: order.customer.name,
++    phone: order.customer.phone,
++    ...(order.customer.email ? { emails: [order.customer.email] } : {}),
++    add: true,
++  };
++}
++
++/** Creates a hosted payment page; Morning issues the receipt itself once the card is charged. */
++export async function createPaymentForm(order: MorningOrder, urls: { success: string; failure: string; notify: string }, custom: string): Promise<string> {
++  const config = requireConfig();
++  const data = await request<Record<string, unknown>>(config, 'POST', '/payments/form', {
++    type: config.documentType,
++    description: `הזמנה ${order.orderNumber} – תנא משקאות`,
++    lang: order.locale,
++    currency: 'ILS',
++    vatType: config.vatType,
++    amount: round2(order.total),
++    maxPayments: 1,
++    ...(config.pluginId ? { pluginId: config.pluginId } : {}),
++    client: clientFor(order),
++    income: incomeLines(order, config.vatType),
++    remarks: `הזמנה מהאתר ${order.orderNumber}`,
++    successUrl: urls.success,
++    failureUrl: urls.failure,
++    notifyUrl: urls.notify,
++    custom,
++  });
++  const url = pickString(data, ['url', 'paymentUrl', 'formUrl']);
++  if (!url?.startsWith('https://')) throw new MorningError('Morning payment form response had no URL', 502, data);
++  return url;
++}
++
++export interface MorningDocumentInfo {
++  id: string;
++  number?: string;
++  amount?: number;
++  url?: string;
++  custom?: string;
++}
++
++function documentInfo(data: unknown): MorningDocumentInfo {
++  const record = (data ?? {}) as Record<string, unknown>;
++  const urls = record.url;
++  const url =
++    typeof urls === 'string' ? urls : urls && typeof urls === 'object' ? pickString(urls, ['he', 'origin', 'en']) : undefined;
++  return {
++    id: pickString(record, ['id']) ?? '',
++    number: pickString(record, ['number', 'documentNumber']),
++    amount: pickNumber(record, ['amount', 'total', 'sum']),
++    url,
++    custom: pickString(record, ['custom']),
++  };
++}
++
++export async function getMorningDocument(id: string): Promise<MorningDocumentInfo> {
++  const config = requireConfig();
++  return documentInfo(await request<unknown>(config, 'GET', `/documents/${encodeURIComponent(id)}`));
++}
++
++export type PaidWith = 'cash' | 'credit' | 'bit' | 'transfer';
++
++/** Payment type codes: 1 cash, 3 credit card, 4 bank transfer, 10 payment app, 11 other. */
++const PAYMENT_TYPE: Record<PaidWith, number> = { cash: 1, credit: 3, transfer: 4, bit: 10 };
++
++/**
++ * Receipt (or invoice-receipt) for an order paid on delivery. Morning e-mails it to the customer
++ * when an address is on file. If the specific payment type is rejected (for example a card payment
++ * without card details), it retries once as "other" so the customer still gets a valid document.
++ */
++export async function createDeliveryReceipt(order: MorningOrder, paidWith: PaidWith, paidAt = new Date()): Promise<MorningDocumentInfo> {
++  const config = requireConfig();
++  const build = (type: number) => ({
++    type: config.documentType,
++    description: `הזמנה ${order.orderNumber} – תנא משקאות`,
++    lang: order.locale,
++    currency: 'ILS',
++    vatType: config.vatType,
++    signed: true,
++    rounding: false,
++    client: clientFor(order),
++    income: incomeLines(order, config.vatType),
++    payment: [
++      {
++        type,
++        date: israelDate(paidAt),
++        price: round2(order.total),
++        currency: 'ILS',
++        ...(type === 3 ? { dealType: 1, numPayments: 1 } : {}),
++      },
++    ],
++    remarks: `הזמנה מהאתר ${order.orderNumber}${type === 11 ? ` · שולם ב${paidWith === 'bit' ? 'ביט' : paidWith === 'credit' ? 'אשראי' : paidWith}` : ''}`,
++  });
++  try {
++    return documentInfo(await request<unknown>(config, 'POST', '/documents', build(PAYMENT_TYPE[paidWith])));
++  } catch (error) {
++    if (error instanceof MorningError && error.status >= 400 && error.status < 500 && PAYMENT_TYPE[paidWith] !== 1) {
++      console.warn('[morning] payment type rejected, retrying as "other"', error.body);
++      return documentInfo(await request<unknown>(config, 'POST', '/documents', build(11)));
++    }
++    throw error;
++  }
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/server/notify.ts cur/tene-mashkaot/src/lib/server/notify.ts
+--- cmp/b/tene-mashkaot/src/lib/server/notify.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/lib/server/notify.ts	2026-09-30 13:50:29.000000000 +0000
+@@ -0,0 +1,74 @@
++import 'server-only';
++import { plainPrice } from '../format';
++import { formatSlot, type OrderSummary } from '../order-summary';
++import type { EventInquiryInput } from '../validation';
++import { sendEventInquiryEmail, sendOrderEmail, sendOrderPaidEmail } from './email';
++import { isolate, sendWhatsAppTemplate, WHATSAPP_TEMPLATES } from './whatsapp-cloud';
++
++/** Never throws: a failing channel is logged and reported as false. */
++async function safely(label: string, task: () => Promise<boolean>): Promise<boolean> {
++  try {
++    return await task();
++  } catch (error) {
++    console.error(`[notify] ${label} failed`, error);
++    return false;
++  }
++}
++
++export async function notifyNewOrder(
++  order: OrderSummary,
++  meta: { stored: boolean; orderId?: string; paymentMethod: 'card' | 'onDelivery' },
++): Promise<{ emailed: boolean; whatsapp: boolean }> {
++  const [emailed, whatsapp] = await Promise.all([
++    safely('order email', () => sendOrderEmail(order, meta)),
++    safely('order whatsapp', () =>
++      sendWhatsAppTemplate(WHATSAPP_TEMPLATES.newOrder, [
++        isolate(order.orderNumber),
++        order.customerName,
++        isolate(plainPrice(order.total, 'he')),
++        `${order.fulfillment === 'delivery' ? 'משלוח' : 'איסוף'} · ${formatSlot(order.slotStart, order.slotEnd, 'he')}`,
++        meta.paymentMethod === 'card' ? 'אשראי באתר (ממתין לאישור)' : 'במסירה / באיסוף',
++      ]),
++    ),
++  ]);
++  return { emailed, whatsapp };
++}
++
++export async function notifyOrderPaid(info: {
++  orderNumber: string;
++  orderId: string;
++  total: number;
++  verified: boolean;
++  documentNumber?: string;
++  documentUrl?: string;
++}): Promise<void> {
++  await Promise.all([
++    safely('paid email', () => sendOrderPaidEmail(info)),
++    safely('paid whatsapp', () =>
++      sendWhatsAppTemplate(WHATSAPP_TEMPLATES.orderPaid, [
++        isolate(info.orderNumber),
++        isolate(plainPrice(info.total, 'he')),
++        info.verified
++          ? info.documentNumber
++            ? `מסמך ${isolate(info.documentNumber)} הופק ונשלח ללקוח`
++            : 'התשלום אומת מול Morning'
++          : 'לא ניתן היה לאמת אוטומטית – יש לבדוק ב־Morning',
++      ]),
++    ),
++  ]);
++}
++
++export async function notifyEventInquiry(inquiry: EventInquiryInput, meta: { stored: boolean }): Promise<{ emailed: boolean; whatsapp: boolean }> {
++  const [emailed, whatsapp] = await Promise.all([
++    safely('event email', () => sendEventInquiryEmail(inquiry, meta)),
++    safely('event whatsapp', () =>
++      sendWhatsAppTemplate(WHATSAPP_TEMPLATES.eventInquiry, [
++        inquiry.name,
++        isolate(inquiry.phone),
++        inquiry.eventType,
++        isolate(inquiry.eventDate.split('-').reverse().join('.')),
++      ]),
++    ),
++  ]);
++  return { emailed, whatsapp };
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/server/orders.ts cur/tene-mashkaot/src/lib/server/orders.ts
+--- cmp/b/tene-mashkaot/src/lib/server/orders.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/lib/server/orders.ts	2026-09-30 13:44:53.000000000 +0000
+@@ -0,0 +1,91 @@
++import 'server-only';
++import { sanityFetchFresh } from '@/sanity/lib/fetch';
++import { getReadClient, getWriteClient } from '@/sanity/lib/client';
++import type { MorningOrder, PaidWith } from './morning';
++
++export interface StoredOrder {
++  _id: string;
++  _rev: string;
++  orderNumber: string;
++  status?: string;
++  createdAt?: string;
++  locale?: 'he' | 'en';
++  fulfillment?: 'delivery' | 'pickup';
++  paymentMethod?: 'card' | 'onDelivery';
++  paymentStatus?: string;
++  paidWith?: PaidWith;
++  paidAt?: string;
++  customer?: { name?: string; phone?: string; email?: string };
++  address?: { city?: string; street?: string; apartment?: string };
++  slot?: { start?: string; end?: string; label?: string };
++  items?: { title?: string; quantity?: number; unitPrice?: number; lineTotal?: number }[];
++  couponCode?: string;
++  subtotal?: number;
++  discount?: number;
++  deliveryFee?: number;
++  total?: number;
++  notes?: string;
++  receipt?: { status?: string; documentId?: string; documentNumber?: string; documentUrl?: string; error?: string };
++}
++
++export const ORDER_ID_PATTERN = /^order\.[0-9a-f-]{36}$/;
++
++export async function getOrderById(id: string): Promise<StoredOrder | null> {
++  const client = getWriteClient() ?? getReadClient();
++  if (!client || !ORDER_ID_PATTERN.test(id)) return null;
++  return (await client.getDocument<StoredOrder>(id)) ?? null;
++}
++
++export interface PublicOrderStatus {
++  paymentMethod?: 'card' | 'onDelivery';
++  paymentStatus?: string;
++  total?: number;
++  receiptUrl?: string;
++}
++
++/** Only non-personal fields – the order page is reachable by anyone who has the order number. */
++export async function getOrderPublicStatus(orderNumber: string): Promise<PublicOrderStatus | null> {
++  return sanityFetchFresh<PublicOrderStatus>(
++    `*[_type == "order" && orderNumber == $orderNumber][0]{paymentMethod, paymentStatus, total, "receiptUrl": receipt.documentUrl}`,
++    { orderNumber },
++  );
++}
++
++export function toMorningOrder(order: StoredOrder): MorningOrder {
++  return {
++    orderNumber: order.orderNumber,
++    locale: order.locale === 'en' ? 'en' : 'he',
++    customer: { name: order.customer?.name || 'לקוח', phone: order.customer?.phone ?? '', email: order.customer?.email || undefined },
++    lines: (order.items ?? []).map((item) => ({ title: item.title || 'פריט', quantity: item.quantity ?? 1, unitPrice: item.unitPrice ?? 0 })),
++    deliveryFee: order.deliveryFee ?? 0,
++    couponDiscount: order.discount ?? 0,
++    total: order.total ?? 0,
++  };
++}
++
++export async function listOrdersForExport(days: number): Promise<StoredOrder[]> {
++  const since = new Date(Date.now() - days * 86_400_000).toISOString();
++  return (
++    (await sanityFetchFresh<StoredOrder[]>(`*[_type == "order" && createdAt >= $since] | order(createdAt desc)[0...5000]`, { since })) ?? []
++  );
++}
++
++export interface StoredInquiry {
++  createdAt?: string;
++  status?: string;
++  name?: string;
++  phone?: string;
++  email?: string;
++  eventType?: string;
++  eventDate?: string;
++  guests?: number;
++  budget?: number;
++  message?: string;
++}
++
++export async function listInquiriesForExport(days: number): Promise<StoredInquiry[]> {
++  const since = new Date(Date.now() - days * 86_400_000).toISOString();
++  return (
++    (await sanityFetchFresh<StoredInquiry[]>(`*[_type == "eventInquiry" && createdAt >= $since] | order(createdAt desc)[0...5000]`, { since })) ?? []
++  );
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/server/rate-limit.ts cur/tene-mashkaot/src/lib/server/rate-limit.ts
+--- cmp/b/tene-mashkaot/src/lib/server/rate-limit.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/lib/server/rate-limit.ts	2026-09-30 13:38:31.000000000 +0000
+@@ -2,12 +2,18 @@
+ import { Ratelimit } from '@upstash/ratelimit';
+ import { Redis } from '@upstash/redis';
+ 
+-type Bucket = 'order' | 'event' | 'quote';
++type Bucket = 'order' | 'event' | 'quote' | 'health' | 'export' | 'webhook';
+ 
+ const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h'}`; windowMs: number }> = {
+   order: { tokens: 5, window: '10 m', windowMs: 10 * 60_000 },
+   event: { tokens: 3, window: '1 h', windowMs: 60 * 60_000 },
+   quote: { tokens: 60, window: '1 m', windowMs: 60_000 },
++  // Uptime monitors ping every few minutes; this only stops floods.
++  health: { tokens: 30, window: '1 m', windowMs: 60_000 },
++  // Google Sheets sync (every 10 minutes per sheet) plus manual refreshes.
++  export: { tokens: 60, window: '1 h', windowMs: 60 * 60_000 },
++  // Signed/secret webhooks from Sanity and Morning; generous, but bounded.
++  webhook: { tokens: 120, window: '1 m', windowMs: 60_000 },
+ };
+ 
+ const redisConfigured = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/server/secrets.ts cur/tene-mashkaot/src/lib/server/secrets.ts
+--- cmp/b/tene-mashkaot/src/lib/server/secrets.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/lib/server/secrets.ts	2026-09-30 13:38:31.000000000 +0000
+@@ -0,0 +1,23 @@
++import 'server-only';
++import { createHash, timingSafeEqual } from 'node:crypto';
++
++/** Constant-time comparison of two secrets (hashing first equalizes their lengths). */
++export function safeEqual(a: string | null | undefined, b: string | null | undefined): boolean {
++  if (!a || !b) return false;
++  const ha = createHash('sha256').update(a).digest();
++  const hb = createHash('sha256').update(b).digest();
++  return timingSafeEqual(ha, hb);
++}
++
++export function bearerToken(request: Request): string | null {
++  const header = request.headers.get('authorization');
++  if (!header?.toLowerCase().startsWith('bearer ')) return null;
++  return header.slice(7).trim() || null;
++}
++
++/** Client IP for route handlers (server actions use getClientIp from ./request). */
++export function requestIp(request: Request): string {
++  const forwarded = request.headers.get('x-forwarded-for');
++  if (forwarded) return forwarded.split(',')[0]!.trim();
++  return request.headers.get('x-real-ip') ?? 'unknown';
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/server/whatsapp-cloud.ts cur/tene-mashkaot/src/lib/server/whatsapp-cloud.ts
+--- cmp/b/tene-mashkaot/src/lib/server/whatsapp-cloud.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur/tene-mashkaot/src/lib/server/whatsapp-cloud.ts	2026-09-30 13:38:31.000000000 +0000
+@@ -0,0 +1,83 @@
++import 'server-only';
++
++/**
++ * WhatsApp Cloud API (Meta) alerts to the store. Business-initiated messages must use templates
++ * approved in WhatsApp Manager; see integrations/whatsapp/TEMPLATES.md for the exact texts.
++ * Alerts go FROM a dedicated API number TO the store's regular WhatsApp, which stays untouched.
++ */
++
++export const WHATSAPP_TEMPLATES = {
++  newOrder: process.env.WHATSAPP_TEMPLATE_NEW_ORDER || 'tene_new_order',
++  orderPaid: process.env.WHATSAPP_TEMPLATE_ORDER_PAID || 'tene_order_paid',
++  eventInquiry: process.env.WHATSAPP_TEMPLATE_EVENT || 'tene_event_inquiry',
++} as const;
++
++function recipients(): string[] {
++  return (process.env.WHATSAPP_ALERT_TO ?? '')
++    .split(',')
++    .map((value) => value.replace(/\D/g, ''))
++    .map((digits) => (digits.startsWith('0') ? `972${digits.slice(1)}` : digits))
++    .filter((digits) => digits.length >= 11);
++}
++
++export function isWhatsAppConfigured(): boolean {
++  return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID && recipients().length);
++}
++
++/** Template parameters may not contain new lines, tabs or more than four consecutive spaces. */
++function cleanParam(value: string): string {
++  const cleaned = value
++    .replace(/[\r\n\t]+/g, ' · ')
++    .replace(/ {4,}/g, '   ')
++    .trim();
++  return (cleaned || '—').slice(0, 900);
++}
++
++/** Keeps numbers (order numbers, phones, prices) left-to-right inside Hebrew text. */
++export function isolate(value: string | number): string {
++  return `\u2066${value}\u2069`;
++}
++
++let warned = false;
++
++export async function sendWhatsAppTemplate(template: string, params: string[]): Promise<boolean> {
++  const token = process.env.WHATSAPP_ACCESS_TOKEN;
++  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
++  const to = recipients();
++  if (!token || !phoneNumberId || !to.length) {
++    if (!warned) {
++      console.warn('[whatsapp] Cloud API is not configured (WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ALERT_TO)');
++      warned = true;
++    }
++    return false;
++  }
++  const version = process.env.WHATSAPP_GRAPH_VERSION || 'v23.0';
++  const language = process.env.WHATSAPP_TEMPLATE_LANG || 'he';
++
++  const results = await Promise.allSettled(
++    to.map(async (recipient) => {
++      const res = await fetch(`https://graph.facebook.com/${version}/${phoneNumberId}/messages`, {
++        method: 'POST',
++        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
++        body: JSON.stringify({
++          messaging_product: 'whatsapp',
++          recipient_type: 'individual',
++          to: recipient,
++          type: 'template',
++          template: {
++            name: template,
++            language: { code: language },
++            components: [{ type: 'body', parameters: params.map((text) => ({ type: 'text', text: cleanParam(text) })) }],
++          },
++        }),
++        cache: 'no-store',
++        signal: AbortSignal.timeout(10_000),
++      });
++      if (!res.ok) throw new Error(`WhatsApp API ${res.status}: ${(await res.text()).slice(0, 300)}`);
++    }),
++  );
++  for (const result of results) {
++    if (result.status === 'rejected') console.error('[whatsapp] send failed', result.reason);
++  }
++  return results.some((result) => result.status === 'fulfilled');
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/lib/validation.ts cur/tene-mashkaot/src/lib/validation.ts
+--- cmp/b/tene-mashkaot/src/lib/validation.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/lib/validation.ts	2026-09-30 13:42:19.000000000 +0000
+@@ -45,6 +45,7 @@
+   .object({
+     items: z.array(cartItemSchema).min(1).max(50),
+     fulfillment: z.enum(['delivery', 'pickup']),
++    paymentMethod: z.enum(['card', 'onDelivery']).default('onDelivery'),
+     zoneId: z.string().max(128).optional().nullable(),
+     name: safeText(80).pipe(z.string().min(2, { message: 'name' })),
+     phone,
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/sanity/lib/fetch.ts cur/tene-mashkaot/src/sanity/lib/fetch.ts
+--- cmp/b/tene-mashkaot/src/sanity/lib/fetch.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/sanity/lib/fetch.ts	2026-09-30 13:42:19.000000000 +0000
+@@ -2,15 +2,23 @@
+ import type { QueryParams } from 'next-sanity';
+ import { getReadClient } from './client';
+ 
++/**
++ * Cache tags. Lists and single pages are tagged separately, so editing one product refreshes that
++ * product's page and the listings – not every other product page on the site.
++ */
+ export const CACHE_TAGS = {
+   settings: 'sanity:settings',
+-  catalog: 'sanity:catalog',
++  categories: 'sanity:categories',
++  products: 'sanity:products',
+   promotions: 'sanity:promotions',
+   delivery: 'sanity:delivery',
+   legal: 'sanity:legal',
+ } as const;
+ 
+-export type CacheTag = (typeof CACHE_TAGS)[keyof typeof CACHE_TAGS];
++export const productTag = (slug: string) => `sanity:product:${slug}`;
++export const legalTag = (slug: string) => `sanity:legal:${slug}`;
++
++export type CacheTag = string;
+ 
+ interface FetchOptions {
+   query: string;
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/sanity/schemaTypes/documents/order.ts cur/tene-mashkaot/src/sanity/schemaTypes/documents/order.ts
+--- cmp/b/tene-mashkaot/src/sanity/schemaTypes/documents/order.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/sanity/schemaTypes/documents/order.ts	2026-09-30 13:46:39.000000000 +0000
+@@ -1,12 +1,5 @@
+ import { defineArrayMember, defineField, defineType } from 'sanity';
+-
+-export const ORDER_STATUS_OPTIONS = [
+-  { title: '🆕 חדשה', value: 'new' },
+-  { title: '✅ אושרה', value: 'confirmed' },
+-  { title: '🚚 במשלוח', value: 'outForDelivery' },
+-  { title: '📦 נמסרה', value: 'delivered' },
+-  { title: '❌ בוטלה', value: 'cancelled' },
+-];
++import { ORDER_STATUS_OPTIONS, PAYMENT_STATUS_OPTIONS } from '../../../lib/order-status';
+ 
+ const money = (name: string, title: string) => defineField({ name, title, type: 'number', readOnly: true });
+ 
+@@ -16,6 +9,7 @@
+   type: 'document',
+   groups: [
+     { name: 'status', title: 'סטטוס', default: true },
++    { name: 'payment', title: 'תשלום' },
+     { name: 'customer', title: 'לקוח' },
+     { name: 'items', title: 'פריטים' },
+   ],
+@@ -30,6 +24,63 @@
+       initialValue: 'new',
+     }),
+     defineField({ name: 'internalNotes', title: 'הערות פנימיות', type: 'text', rows: 3, group: 'status' }),
++    defineField({
++      name: 'paymentMethod',
++      title: 'אמצעי תשלום',
++      type: 'string',
++      readOnly: true,
++      group: ['status', 'payment'],
++      options: {
++        list: [
++          { title: '💳 אשראי באתר', value: 'card' },
++          { title: '💵 במסירה / באיסוף', value: 'onDelivery' },
++        ],
++      },
++    }),
++    defineField({
++      name: 'paymentStatus',
++      title: 'סטטוס תשלום',
++      type: 'string',
++      group: ['status', 'payment'],
++      options: { list: PAYMENT_STATUS_OPTIONS, layout: 'radio' },
++      description: 'תשלום במסירה: אחרי שהלקוח שילם, סמנו "שולם" ובחרו אמצעי תשלום. הקבלה תופק ותישלח ללקוח אוטומטית.',
++    }),
++    defineField({
++      name: 'paidWith',
++      title: 'שולם באמצעות',
++      type: 'string',
++      group: 'payment',
++      hidden: ({ document }) => document?.paymentMethod === 'card',
++      options: {
++        list: [
++          { title: 'מזומן', value: 'cash' },
++          { title: 'אשראי', value: 'credit' },
++          { title: 'ביט', value: 'bit' },
++          { title: 'העברה בנקאית', value: 'transfer' },
++        ],
++        layout: 'radio',
++      },
++      validation: (rule) =>
++        rule.custom((value, context) => {
++          const doc = context.document as { paymentStatus?: string; paymentMethod?: string } | undefined;
++          return doc?.paymentStatus === 'paid' && doc.paymentMethod !== 'card' && !value ? 'בחרו איך הלקוח שילם, כדי שהקבלה תופק נכון' : true;
++        }),
++    }),
++    defineField({ name: 'paidAt', title: 'שולם בתאריך', type: 'datetime', readOnly: true, group: 'payment' }),
++    defineField({
++      name: 'receipt',
++      title: 'קבלה ב־Morning',
++      type: 'object',
++      readOnly: true,
++      group: 'payment',
++      fields: [
++        defineField({ name: 'status', title: 'מצב', type: 'string' }),
++        defineField({ name: 'documentId', title: 'מזהה מסמך', type: 'string' }),
++        defineField({ name: 'documentNumber', title: 'מספר מסמך', type: 'string' }),
++        defineField({ name: 'documentUrl', title: 'קישור למסמך', type: 'url' }),
++        defineField({ name: 'error', title: 'שגיאה', type: 'text', rows: 2 }),
++      ],
++    }),
+     defineField({ name: 'createdAt', title: 'נוצרה', type: 'datetime', readOnly: true, group: 'status' }),
+     defineField({ name: 'locale', title: 'שפה', type: 'string', readOnly: true, group: 'status' }),
+     defineField({
+@@ -124,10 +175,11 @@
+   ],
+   orderings: [{ title: 'חדשות קודם', name: 'createdDesc', by: [{ field: 'createdAt', direction: 'desc' }] }],
+   preview: {
+-    select: { number: 'orderNumber', name: 'customer.name', total: 'total', status: 'status', slot: 'slot.label' },
+-    prepare: ({ number, name, total, status, slot }) => {
++    select: { number: 'orderNumber', name: 'customer.name', total: 'total', status: 'status', slot: 'slot.label', payment: 'paymentStatus' },
++    prepare: ({ number, name, total, status, slot, payment }) => {
+       const statusTitle = ORDER_STATUS_OPTIONS.find((o) => o.value === status)?.title ?? '';
+-      return { title: `${statusTitle} ${number ?? ''} · ${name ?? ''}`, subtitle: `₪${total ?? 0} · ${slot ?? ''}` };
++      const paymentIcon = PAYMENT_STATUS_OPTIONS.find((o) => o.value === payment)?.title.split(' ')[0] ?? '';
++      return { title: `${statusTitle} ${number ?? ''} · ${name ?? ''}`, subtitle: `${paymentIcon} ₪${total ?? 0} · ${slot ?? ''}` };
+     },
+   },
+ });
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x CHANGES.md -x docs -x tene-changes.diff cmp/b/tene-mashkaot/src/sanity/structure.ts cur/tene-mashkaot/src/sanity/structure.ts
+--- cmp/b/tene-mashkaot/src/sanity/structure.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur/tene-mashkaot/src/sanity/structure.ts	2026-09-30 13:42:19.000000000 +0000
+@@ -15,6 +15,16 @@
+             .defaultOrdering([{ field: 'createdAt', direction: 'desc' }]),
+         ),
+       S.listItem()
++        .title('תשלומים לטיפול')
++        .id('orders-payment')
++        .child(
++          S.documentList()
++            .title('ממתינות לתשלום או לבדיקה')
++            .schemaType('order')
++            .filter('_type == "order" && paymentStatus in ["pending", "review", "failed"] && status != "cancelled"')
++            .defaultOrdering([{ field: 'createdAt', direction: 'desc' }]),
++        ),
++      S.listItem()
+         .title('כל ההזמנות')
+         .id('orders-all')
+         .child(

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8"><style>
+@font-face{font-family:Suez;src:url(../../src/app/fonts/suez-one-hebrew-400-normal.woff2) format('woff2')}
+@font-face{font-family:Heebo;src:url(../../src/app/fonts/heebo-hebrew-wght-normal.woff2) format('woff2');font-weight:100 900}
+html,body{margin:0;background:#000}
+.label{position:relative;width:2138px;height:1024px;overflow:hidden;color:#5a1a22;
+  background:radial-gradient(60% 95% at 50% 45%,#fbf4e4 0%,#f2e4c8 55%,#e2cda4 100%)}
+.label::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(120,90,50,.03) 0 2px,transparent 2px 6px),repeating-linear-gradient(0deg,rgba(120,90,50,.025) 0 1px,transparent 1px 4px)}
+.rule{position:absolute;left:0;right:0;height:5px;background:#b58d4f}
+.rule.thin{height:2px}
+.band{position:absolute;left:0;right:0;top:846px;height:78px;background:linear-gradient(180deg,#6b1f2a,#4a1019);display:flex;align-items:center;justify-content:center}
+.band p{margin:0;font-family:Heebo;font-weight:600;font-size:40px;letter-spacing:.32em;color:#e9cf95}
+.panel{position:absolute;top:92px;left:50%;width:860px;height:720px;transform:translateX(-50%);border:4px solid #b58d4f;border-radius:36px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.panel::after{content:'';position:absolute;inset:12px;border:2px solid rgba(181,141,79,.7);border-radius:26px}
+.star{width:96px;height:96px;background:linear-gradient(160deg,#ecd49c,#a87c3a);clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
+.name{font-family:Suez;font-size:210px;line-height:.9;margin-top:18px}
+.sub{font-family:Suez;font-size:124px;line-height:1;margin-top:4px}
+.divider{display:flex;align-items:center;gap:18px;width:70%;margin:30px 0 22px}
+.divider span{flex:1;height:3px;background:#b58d4f}
+.divider i{width:18px;height:18px;background:#b58d4f;transform:rotate(45deg)}
+.kind{font-family:Heebo;font-weight:700;font-size:66px;letter-spacing:.1em;color:#7a2230}
+.wing{position:absolute;top:250px;width:560px;text-align:center}
+.wing .star{width:62px;height:62px;margin:0 auto 18px}
+.wing .w1{font-family:Suez;font-size:74px;line-height:1}
+.wing .w2{font-family:Heebo;font-weight:500;font-size:38px;letter-spacing:.2em;margin-top:22px;color:#8a6a3a}
+</style></head><body>
+<div class="label" id="label">
+  <div class="rule" style="top:30px"></div><div class="rule thin" style="top:46px"></div>
+  <div class="rule thin" style="bottom:46px"></div><div class="rule" style="bottom:30px"></div>
+  <div class="wing" style="left:110px"><div class="star"></div><div class="w1">תנא משקאות</div><div class="w2">אלעד</div></div>
+  <div class="wing" style="right:110px"><div class="star"></div><div class="w1">חוויה של לגימה</div><div class="w2">יין · מתנות · אירועים</div></div>
+  <div class="panel"><div class="star"></div><div class="name">תנא</div><div class="sub">משקאות</div><div class="divider"><span></span><i></i><span></span></div><div class="kind">יין אדום</div></div>
+  <div class="band"><p>חוויה של לגימה</p></div>
+</div></body></html>

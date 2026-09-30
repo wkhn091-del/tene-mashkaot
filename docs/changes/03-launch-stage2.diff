@@ -1,0 +1,1832 @@
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/.env.example cur2/tene-mashkaot/.env.example
+--- cur/tene-mashkaot/.env.example	2026-09-30 13:48:27.000000000 +0000
++++ cur2/tene-mashkaot/.env.example	2026-09-30 20:33:01.000000000 +0000
+@@ -58,3 +58,16 @@
+ # ── Google Sheets sync (integrations/google-sheets) ──
+ # Random string (openssl rand -hex 32), entered once in the sheet's setup menu
+ SHEETS_EXPORT_TOKEN=
++# ── Analytics (loaded only after the visitor opts in through the cookie banner) ──
++# GA4: Admin → Data streams → Web → Measurement ID (G-XXXXXXXXXX)
++NEXT_PUBLIC_GA_MEASUREMENT_ID=
++# Meta Pixel: Events Manager → Data sources → Pixel ID
++NEXT_PUBLIC_META_PIXEL_ID=
++# Google Search Console → HTML tag verification → the content="…" value only
++NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=
++# ── Error monitoring (Sentry, free Developer plan) ──
++NEXT_PUBLIC_SENTRY_DSN=
++# Build-time source map upload (Settings → Auth Tokens, scope project:releases)
++SENTRY_ORG=
++SENTRY_PROJECT=
++SENTRY_AUTH_TOKEN=
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/DEPLOYMENT.md cur2/tene-mashkaot/DEPLOYMENT.md
+--- cur/tene-mashkaot/DEPLOYMENT.md	2026-09-30 13:50:29.000000000 +0000
++++ cur2/tene-mashkaot/DEPLOYMENT.md	2026-09-30 20:33:01.000000000 +0000
+@@ -328,3 +328,72 @@
+ | `/api/revalidate`, `/api/orders/paid` | חתימת Sanity, 120 בקשות לדקה |
+ | `/api/payments/morning/notify` | סוד ב־URL ואימות מול ה־API של Morning, 120 בקשות לדקה |
+ | הזמנה, מחיר ופנייה (Server Actions) | בדיקת מקור הבקשה, Turnstile, מלכודת בוטים, הגבלת קצב |
++
++## 12. שלב ההשקה – PWA, מדידה, ניטור שגיאות ושיתוף
++
++### 12.1 אפליקציה למסך הבית ועבודה בלי אינטרנט (PWA)
++- **התקנה:** אנדרואיד (Chrome) מציע "התקנת אפליקציה". באייפון (Safari) מתקינים דרך שיתוף ← "הוספה למסך הבית".
++- **קבצים:** הגדרות האפליקציה ב־`src/app/manifest.ts`, אייקונים ב־`public/icons/`, וה־Service Worker ב־`public/sw.js`.
++- **עמודים:** תמיד נטענים קודם מהרשת. עותק שמור מוצג רק כשאין חיבור, ובעותק כזה:
++  - המחירים וסטטוס "פתוח עכשיו" מוסתרים.
++  - מופיע פס שמודיע שזה עותק שמור.
++  - כך אף פעם לא מוצג מחיר ישן או "פתוח" בשבת.
++- **לא נשמרים לעולם:** סל, קופה, עמודי הזמנה, נתיבי API והסטודיו.
++- **עדכון גדול:** מעלים את `VERSION` בראש `public/sw.js`, וכל המטמון הישן נמחק בביקור הבא.
++- **בדיקה:**
++  1. Chrome DevTools ← Application ← Service Workers: מוודאים שהוא רשום.
++  2. בלשונית Network מסמנים Offline ומרעננים עמוד שכבר ביקרתם בו.
++
++### 12.2 GA4 ו־Meta Pixel – רק בהסכמה
++1. **GA4:** ב־analytics.google.com ← Admin ← Create property ← Web stream לכתובת האתר. מעתיקים את ה־Measurement ID ל־`NEXT_PUBLIC_GA_MEASUREMENT_ID`.
++2. **Meta:** ב־Events Manager יוצרים Pixel ומעתיקים את המזהה ל־`NEXT_PUBLIC_META_PIXEL_ID`.
++3. **Redeploy:** משתנים שמתחילים ב־`NEXT_PUBLIC_` נכנסים לקוד בזמן הבנייה, ולכן חייבים לבנות מחדש.
++
++איך זה עובד:
++- **באנר העוגיות:** מופיע רק כשאחד המזהים מוגדר. כלום לא נטען לפני לחיצה על "אישור". "רק הכרחיות" לא טוען אף כלי מדידה.
++- **שינוי בחירה:** "הגדרות עוגיות" בתחתית האתר פותח את הבאנר מחדש. ביטול הסכמה מוחק את עוגיות `_ga` ו־`_fb`.
++- **הגדרות פרטיות:** ב־GA4 אותות הפרסום (Google signals) כבויים. Consent Mode v2 מוגדר כך: פרסום כבוי, מדידה פעילה רק באישור.
++- **אירועי מסחר:**
++
++  | GA4 | Meta | מתי |
++  |---|---|---|
++  | `view_item` | `ViewContent` | צפייה במוצר |
++  | `add_to_cart` | `AddToCart` | הוספה לסל |
++  | `begin_checkout` | `InitiateCheckout` | כניסה לקופה |
++  | `purchase` | `Purchase` | הזמנה עם תשלום במסירה, או אחרי אישור תשלום באשראי |
++  | `generate_lead` | `Lead` | פנייה לאירוע |
++
++- **ספירה אחת לכל הזמנה:** `purchase` נשלח פעם אחת בלבד, גם אם מרעננים את עמוד ההזמנה. ב־Meta הוא נושא את מספר ההזמנה כ־`eventID`, כך שאפשר להוסיף בעתיד Conversions API בלי ספירה כפולה.
++- **פרסום:** פרסום משקאות משכרים מוגבל גם בחוק וגם במדיניות של Meta. כדאי לבדוק את ההגבלות לפני שמריצים קמפיין.
++
++### 12.3 Sentry – ניטור שגיאות
++1. **חשבון:** פותחים חשבון חינמי ב־sentry.io ← Create project ← Next.js. מעתיקים את ה־DSN ל־`NEXT_PUBLIC_SENTRY_DSN`.
++2. **Source maps:** כדי ששגיאות יצביעו על השורה המדויקת בקוד:
++   1. ב־Settings ← Auth Tokens יוצרים טוקן עם הרשאה `project:releases`.
++   2. מזינים ב־Vercel את `SENTRY_AUTH_TOKEN`, ‏`SENTRY_ORG` ו־`SENTRY_PROJECT`.
++   3. אחרי ההעלאה ל־Sentry, ה־source maps נמחקים מהשרת.
++
++איך זה עובד:
++- **נתיב דיווח:** הדיווחים מהדפדפן עוברים דרך `/monitoring` באתר עצמו, ולכן חוסמי פרסומות ו־CSP לא חוסמים אותם.
++- **הפרות CSP:** מדווחות גם הן ל־Sentry (`report-uri`).
++- **פרטיות:** לא נשלחים פרטי משתמש, עוגיות, כותרות או גוף בקשה. טופסי ההזמנה מכילים שמות וכתובות. הסוד שבכתובת אישור התשלום מוסר מהדיווח.
++- **התראות תשלום:** תשלום שלא ניתן היה לאמת, או קבלה שנכשלה, יוצרים התראה ב־Sentry עם תגית `integration:morning`.
++
++### 12.4 תמונות שיתוף (וואטסאפ, פייסבוק)
++- **מה נוצר:** לכל מוצר ולכל קטגוריה נוצרת תמונת שיתוף ממותגת בגודל 1200×630: שם, קטגוריה, תמונה ומסגרת זהב.
++- **מחיר:** לא מופיע בתמונה, כי וואטסאפ שומר תצוגות מקדימות לזמן רב.
++- **קבצים:** `src/app/[locale]/product/[slug]/opengraph-image.tsx` ו־`src/app/[locale]/shop/[category]/opengraph-image.tsx`.
++- **פורמט:** התמונה נשמרת כ־JPEG של כ־60KB. וואטסאפ לא מציג תמונות כבדות.
++- **מטמון:** התמונה נשמרת ליום. אחרי שינוי שם או תמונה של מוצר, היא מתעדכנת תוך עד 24 שעות.
++- **בדיקה:** מדביקים קישור למוצר בכלי Facebook Sharing Debugger ולוחצים "Scrape Again".
++
++### 12.5 Google Search Console ו־Google Business Profile
++1. **Search Console:**
++   1. ב־search.google.com/search-console ← Add property ← URL prefix ← כתובת האתר.
++   2. בוחרים אימות מסוג HTML tag, מעתיקים רק את הערך של `content` ל־`NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, ומבצעים Redeploy.
++   3. מאמתים ב־Search Console, ואז מגישים את `sitemap.xml` בלשונית Sitemaps.
++2. **Google Business Profile:** פותחים ב־business.google.com.
++   - שם, כתובת, טלפון ושעות זהים בדיוק לאתר.
++   - קטגוריה: חנות משקאות.
++   - קישור לאתר, ותמונות החנות.
++   - האימות של גוגל יכול לקחת כמה ימים.
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/messages/en.json cur2/tene-mashkaot/messages/en.json
+--- cur/tene-mashkaot/messages/en.json	2026-09-30 13:46:39.000000000 +0000
++++ cur2/tene-mashkaot/messages/en.json	2026-09-30 14:01:30.000000000 +0000
+@@ -357,5 +357,21 @@
+   },
+   "shabbat": {
+     "banner": "Shabbat Shalom! Orders are not accepted on Shabbat and holidays. Ordering reopens at {time}."
++  },
++  "consent": {
++    "title": "Cookies & privacy",
++    "body": "We use necessary cookies to make the site work (cart, age check, accessibility). With your permission we also use usage statistics (Google Analytics) and ad measurement (Meta) to improve the site and our deals.",
++    "policy": "Cookie policy",
++    "acceptAll": "Accept all",
++    "necessaryOnly": "Necessary only",
++    "customize": "Customize",
++    "saveChoice": "Save choice",
++    "necessary": "Necessary",
++    "necessaryHint": "Always on – the site needs them",
++    "analytics": "Statistics",
++    "analyticsHint": "Google Analytics – which pages and products interest people",
++    "marketing": "Marketing",
++    "marketingHint": "Meta Pixel – measuring Facebook & Instagram ads",
++    "settings": "Cookie settings"
+   }
+ }
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/messages/he.json cur2/tene-mashkaot/messages/he.json
+--- cur/tene-mashkaot/messages/he.json	2026-09-30 13:46:39.000000000 +0000
++++ cur2/tene-mashkaot/messages/he.json	2026-09-30 14:01:30.000000000 +0000
+@@ -357,5 +357,21 @@
+   },
+   "shabbat": {
+     "banner": "שבת שלום! האתר אינו מקבל הזמנות בשבת ובחג. ההזמנות ייפתחו מחדש ב-{time}."
++  },
++  "consent": {
++    "title": "עוגיות ופרטיות",
++    "body": "אנחנו משתמשים בעוגיות הכרחיות כדי שהאתר יעבוד (סל, אישור גיל, נגישות). באישורך נשתמש גם במדידת שימוש (Google Analytics) ובמדידת פרסום (Meta), כדי לשפר את האתר ואת המבצעים.",
++    "policy": "מדיניות העוגיות",
++    "acceptAll": "אישור הכול",
++    "necessaryOnly": "רק הכרחיות",
++    "customize": "התאמה אישית",
++    "saveChoice": "שמירת הבחירה",
++    "necessary": "הכרחיות",
++    "necessaryHint": "תמיד פעילות – בלעדיהן האתר לא עובד",
++    "analytics": "סטטיסטיקה",
++    "analyticsHint": "Google Analytics – אילו עמודים ומוצרים מעניינים",
++    "marketing": "שיווק",
++    "marketingHint": "Meta Pixel – מדידת פרסום בפייסבוק ובאינסטגרם",
++    "settings": "הגדרות עוגיות"
+   }
+ }
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/next.config.ts cur2/tene-mashkaot/next.config.ts
+--- cur/tene-mashkaot/next.config.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/next.config.ts	2026-09-30 20:29:18.000000000 +0000
+@@ -1,4 +1,5 @@
+ import type { NextConfig } from 'next';
++import { withSentryConfig } from '@sentry/nextjs/config';
+ import createNextIntlPlugin from 'next-intl/plugin';
+ 
+ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
+@@ -52,6 +53,15 @@
+         ],
+       },
+       {
++        // The service worker must never be cached, or updates would not reach visitors.
++        source: '/sw.js',
++        headers: [
++          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
++          { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
++          { key: 'Service-Worker-Allowed', value: '/' },
++        ],
++      },
++      {
+         source: '/models/:path*',
+         headers: [{ key: 'Cache-Control', value: 'public, max-age=604800, stale-while-revalidate=86400' }],
+       },
+@@ -59,4 +69,14 @@
+   },
+ };
+ 
+-export default withNextIntl(nextConfig);
++export default withSentryConfig(withNextIntl(nextConfig), {
++  org: process.env.SENTRY_ORG,
++  project: process.env.SENTRY_PROJECT,
++  authToken: process.env.SENTRY_AUTH_TOKEN,
++  silent: !process.env.CI,
++  // Browser reports go through our own domain, so ad blockers and the CSP don't drop them.
++  tunnelRoute: '/monitoring',
++  widenClientFileUpload: true,
++  sourcemaps: { deleteSourcemapsAfterUpload: true },
++  telemetry: false,
++});
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/package.json cur2/tene-mashkaot/package.json
+--- cur/tene-mashkaot/package.json	2026-09-30 09:22:56.000000000 +0000
++++ cur2/tene-mashkaot/package.json	2026-09-30 20:31:40.000000000 +0000
+@@ -20,6 +20,7 @@
+     "@react-three/fiber": "^9.8.1",
+     "@sanity/image-url": "^2.1.1",
+     "@sanity/vision": "^6.17.0",
++    "@sentry/nextjs": "^11.1.0",
+     "@upstash/ratelimit": "^2.2.0",
+     "@upstash/redis": "^1.39.0",
+     "@vercel/analytics": "^2.0.1",
+@@ -32,6 +33,7 @@
+     "resend": "^6.31.0",
+     "sanity": "^6.17.0",
+     "server-only": "^0.0.1",
++    "sharp": "^0.35.5",
+     "styled-components": "^6.5.3",
+     "three": "^0.186.1",
+     "zod": "^4.6.5"
+@@ -50,7 +52,6 @@
+     "eslint": "^9",
+     "eslint-config-next": "16.3.7",
+     "meshoptimizer": "^1.3.0",
+-    "sharp": "^0.35.5",
+     "tailwindcss": "^4",
+     "tsx": "^4.23.15",
+     "typescript": "^5"
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/public/offline.html cur2/tene-mashkaot/public/offline.html
+--- cur/tene-mashkaot/public/offline.html	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/public/offline.html	2026-09-30 20:27:23.000000000 +0000
+@@ -0,0 +1,37 @@
++<!doctype html>
++<html lang="he" dir="rtl">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<meta name="theme-color" content="#140508">
++<title>אין חיבור לאינטרנט · תנא משקאות</title>
++<style>
++  :root { color-scheme: dark; }
++  * { box-sizing: border-box; }
++  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(120% 80% at 50% 0%, #3a0d15, #140508 70%); color: #f7f1e6; font-family: Arial, "Helvetica Neue", sans-serif; text-align: center; }
++  main { max-width: 440px; }
++  .star { width: 64px; height: 64px; margin: 0 auto 20px; }
++  h1 { margin: 0 0 12px; font-size: 26px; color: #f1ddb2; }
++  p { margin: 0 0 12px; line-height: 1.7; color: rgba(247, 241, 230, 0.85); }
++  .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 22px; }
++  a { display: inline-block; padding: 12px 22px; border-radius: 999px; font-weight: bold; text-decoration: none; }
++  .primary { background: #cfa669; color: #140508; }
++  .secondary { border: 1px solid rgba(207, 166, 105, 0.6); color: #f1ddb2; }
++  .ltr { direction: ltr; unicode-bidi: isolate; }
++  .en { margin-top: 28px; font-size: 14px; color: rgba(247, 241, 230, 0.6); }
++</style>
++</head>
++<body>
++<main>
++  <svg class="star" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#58141f"/><path fill="#d4a94f" d="M32 8l5.6 13.2L52 22.4l-10.9 9.4 3.3 14.1L32 38.3 19.6 45.9l3.3-14.1L12 22.4l14.4-1.2z"/></svg>
++  <h1>אין כרגע חיבור לאינטרנט</h1>
++  <p>העמוד הזה עוד לא נשמר במכשיר. עמודים שכבר ביקרתם בהם זמינים גם בלי חיבור. מחירים והזמנות יתאפשרו כשהחיבור יחזור.</p>
++  <p>אפשר גם להתקשר: <a class="ltr" style="padding:0;color:#f1ddb2" href="tel:+972535467863">053-5467863</a></p>
++  <div class="actions">
++    <a class="primary" href="">נסו שוב</a>
++    <a class="secondary" href="/he">לדף הבית</a>
++  </div>
++  <p class="en" lang="en" dir="ltr">You are offline. Pages you have visited are still available; prices and ordering return when you are back online.</p>
++</main>
++</body>
++</html>
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/public/sw.js cur2/tene-mashkaot/public/sw.js
+--- cur/tene-mashkaot/public/sw.js	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/public/sw.js	2026-09-30 20:43:16.000000000 +0000
+@@ -0,0 +1,154 @@
++/*
++ * תנא משקאות – service worker for offline browsing.
++ *
++ * - Pages: network first (always fresh when online). A saved copy is used only when the network
++ *   fails, and is marked as offline: prices and live "open now" badges are hidden, so a stale price
++ *   or a wrong opening status is never shown.
++ * - Never cached: cart, checkout and order pages (offline they show the offline page), APIs, the
++ *   Studio and Sentry's tunnel.
++ * - Hashed build assets: cache first. Images: stale-while-revalidate, bounded.
++ * Bump VERSION to drop every old cache on the next visit.
++ */
++const VERSION = 'v1';
++const PAGES = `tene-pages-${VERSION}`;
++const ASSETS = `tene-assets-${VERSION}`;
++const IMAGES = `tene-images-${VERSION}`;
++const OFFLINE_URL = '/offline.html';
++const MAX_PAGES = 40;
++const MAX_ASSETS = 250;
++const MAX_IMAGES = 150;
++const NETWORK_TIMEOUT_MS = 8000;
++
++const BYPASS = [/^\/api\//, /^\/studio/, /^\/monitoring/, /^\/_vercel/];
++// Live pages: always from the network and never stored – offline they get the offline page instead.
++const LIVE_PAGES = /\/(cart|checkout|order)(\/|$)/;
++
++self.addEventListener('install', (event) => {
++  event.waitUntil(
++    caches
++      .open(PAGES)
++      .then((cache) => cache.addAll([OFFLINE_URL, '/icons/icon-192.png']))
++      .then(() => self.skipWaiting()),
++  );
++});
++
++self.addEventListener('activate', (event) => {
++  event.waitUntil(
++    (async () => {
++      const keep = [PAGES, ASSETS, IMAGES];
++      const keys = await caches.keys();
++      await Promise.all(keys.filter((key) => key.startsWith('tene-') && !keep.includes(key)).map((key) => caches.delete(key)));
++      if (self.registration.navigationPreload) await self.registration.navigationPreload.enable();
++      await self.clients.claim();
++    })(),
++  );
++});
++
++async function trim(cacheName, max) {
++  const cache = await caches.open(cacheName);
++  const keys = await cache.keys();
++  for (let i = 0; i < keys.length - max; i += 1) await cache.delete(keys[i]);
++}
++
++function cacheable(response) {
++  return response && response.ok && response.type === 'basic';
++}
++
++const OFFLINE_TEXT = {
++  he: 'אין חיבור לאינטרנט – זה עותק שמור. מחירים ומלאי יוצגו כשהחיבור יחזור, וההזמנה מתאפשרת רק עם חיבור.',
++  en: "You're offline – this is a saved copy. Prices and availability return when you're back online; ordering needs a connection.",
++};
++
++/** CSS-only marker (no DOM changes, so React hydration is unaffected). */
++async function markOffline(response, pathname) {
++  const text = OFFLINE_TEXT[pathname.startsWith('/en') ? 'en' : 'he'];
++  const style =
++    '<style id="tene-offline">[data-price],[data-live-status]{visibility:hidden!important}' +
++    `body::before{content:"${text}";position:sticky;top:0;z-index:1000;display:block;padding:10px 16px;` +
++    'background:#cfa669;color:#140508;font:600 14px/1.5 Arial,sans-serif;text-align:center}</style>';
++  const html = (await response.text()).replace('</head>', `${style}</head>`);
++  const headers = new Headers(response.headers);
++  headers.delete('content-length');
++  return new Response(html, { status: 200, statusText: 'OK', headers });
++}
++
++function withTimeout(promise, ms) {
++  return new Promise((resolve, reject) => {
++    const timer = setTimeout(() => reject(new Error('timeout')), ms);
++    promise.then(
++      (value) => {
++        clearTimeout(timer);
++        resolve(value);
++      },
++      (error) => {
++        clearTimeout(timer);
++        reject(error);
++      },
++    );
++  });
++}
++
++async function networkFirstPage(event, url) {
++  const cache = await caches.open(PAGES);
++  const cached = await cache.match(event.request, { ignoreVary: true });
++  try {
++    const network = (async () => (await event.preloadResponse) || fetch(event.request))();
++    // With a saved copy available, don't let a hanging connection block the visitor forever.
++    const response = cached ? await withTimeout(network, NETWORK_TIMEOUT_MS) : await network;
++    if (cacheable(response) && /^\/(he|en)(\/|$)/.test(url.pathname)) {
++      const copy = response.clone();
++      event.waitUntil(cache.put(event.request, copy).then(() => trim(PAGES, MAX_PAGES)));
++    }
++    return response;
++  } catch {
++    if (cached) return markOffline(cached, url.pathname);
++    return (await cache.match(OFFLINE_URL)) || Response.error();
++  }
++}
++
++async function cacheFirst(event, cacheName, max) {
++  const cache = await caches.open(cacheName);
++  const hit = await cache.match(event.request);
++  if (hit) return hit;
++  const response = await fetch(event.request);
++  if (cacheable(response)) {
++    const copy = response.clone();
++    event.waitUntil(cache.put(event.request, copy).then(() => trim(cacheName, max)));
++  }
++  return response;
++}
++
++async function staleWhileRevalidate(event, cacheName, max) {
++  const cache = await caches.open(cacheName);
++  const hit = await cache.match(event.request);
++  const refresh = fetch(event.request)
++    .then((response) => {
++      if (cacheable(response)) {
++        const copy = response.clone();
++        event.waitUntil(cache.put(event.request, copy).then(() => trim(cacheName, max)));
++      }
++      return response;
++    })
++    .catch(() => hit || Response.error());
++  return hit || refresh;
++}
++
++self.addEventListener('fetch', (event) => {
++  const { request } = event;
++  if (request.method !== 'GET') return;
++  const url = new URL(request.url);
++  if (url.origin !== self.location.origin) return;
++  if (BYPASS.some((pattern) => pattern.test(url.pathname))) return;
++  // Next.js client-side navigations fetch RSC payloads; let them go straight to the network.
++  if (request.headers.get('RSC') || url.searchParams.has('_rsc')) return;
++
++  if (request.mode === 'navigate' && LIVE_PAGES.test(url.pathname)) {
++    event.respondWith(fetch(request).catch(async () => (await caches.match(OFFLINE_URL)) || Response.error()));
++  } else if (request.mode === 'navigate') {
++    event.respondWith(networkFirstPage(event, url));
++  } else if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/models/') || url.pathname.startsWith('/icons/')) {
++    event.respondWith(cacheFirst(event, ASSETS, MAX_ASSETS));
++  } else if (url.pathname.startsWith('/_next/image') || url.pathname.startsWith('/images/')) {
++    event.respondWith(staleWhileRevalidate(event, IMAGES, MAX_IMAGES));
++  }
++});
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/sentry.edge.config.ts cur2/tene-mashkaot/sentry.edge.config.ts
+--- cur/tene-mashkaot/sentry.edge.config.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/sentry.edge.config.ts	2026-09-30 20:29:18.000000000 +0000
+@@ -0,0 +1,20 @@
++import * as Sentry from '@sentry/nextjs';
++
++const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN;
++
++Sentry.init({
++  dsn,
++  enabled: Boolean(dsn),
++  environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
++  release: process.env.VERCEL_GIT_COMMIT_SHA,
++  tracesSampleRate: 0.1,
++  // Privacy: no user info, cookies, headers or bodies (order forms carry names, phones and
++  // addresses), and the payment-notification secret is stripped from URLs.
++  dataCollection: {
++    userInfo: false,
++    cookies: false,
++    httpHeaders: false,
++    httpBodies: [],
++    urlQueryParams: { deny: ['token'] },
++  },
++});
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/sentry.server.config.ts cur2/tene-mashkaot/sentry.server.config.ts
+--- cur/tene-mashkaot/sentry.server.config.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/sentry.server.config.ts	2026-09-30 20:29:18.000000000 +0000
+@@ -0,0 +1,20 @@
++import * as Sentry from '@sentry/nextjs';
++
++const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN;
++
++Sentry.init({
++  dsn,
++  enabled: Boolean(dsn),
++  environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
++  release: process.env.VERCEL_GIT_COMMIT_SHA,
++  tracesSampleRate: 0.1,
++  // Privacy: no user info, cookies, headers or bodies (order forms carry names, phones and
++  // addresses), and the payment-notification secret is stripped from URLs.
++  dataCollection: {
++    userInfo: false,
++    cookies: false,
++    httpHeaders: false,
++    httpBodies: [],
++    urlQueryParams: { deny: ['token'] },
++  },
++});
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/actions/checkout.ts cur2/tene-mashkaot/src/actions/checkout.ts
+--- cur/tene-mashkaot/src/actions/checkout.ts	2026-09-30 13:42:19.000000000 +0000
++++ cur2/tene-mashkaot/src/actions/checkout.ts	2026-09-30 20:28:36.000000000 +0000
+@@ -1,6 +1,7 @@
+ 'use server';
+ 
+ import { randomInt, randomUUID } from 'node:crypto';
++import * as Sentry from '@sentry/nextjs';
+ import { after } from 'next/server';
+ import { SITE_URL } from '@/lib/defaults';
+ import { getDeliverySettings, getDeliveryZonesFresh, getProductsByIdsFresh, getPromotionsFresh, getSiteSettings } from '@/lib/data';
+@@ -332,6 +333,7 @@
+       );
+     } catch (error) {
+       console.error('[checkout] payment form failed', { orderNumber, error });
++      Sentry.captureException(error, { tags: { integration: 'morning' }, extra: { orderNumber } });
+       await client
+         .patch(orderId)
+         .set({ status: 'cancelled', paymentStatus: 'failed', internalNotes: 'יצירת דף התשלום נכשלה – הלקוח לא חויב.' })
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/app/[locale]/error.tsx cur2/tene-mashkaot/src/app/[locale]/error.tsx
+--- cur/tene-mashkaot/src/app/[locale]/error.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/app/[locale]/error.tsx	2026-09-30 20:28:36.000000000 +0000
+@@ -1,5 +1,6 @@
+ 'use client';
+ 
++import * as Sentry from '@sentry/nextjs';
+ import { useTranslations } from 'next-intl';
+ import { useEffect } from 'react';
+ import { Link } from '@/i18n/navigation';
+@@ -10,6 +11,7 @@
+ 
+   useEffect(() => {
+     console.error('[page-error]', error);
++    Sentry.captureException(error);
+   }, [error]);
+ 
+   return (
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/app/[locale]/layout.tsx cur2/tene-mashkaot/src/app/[locale]/layout.tsx
+--- cur/tene-mashkaot/src/app/[locale]/layout.tsx	2026-09-30 08:57:49.000000000 +0000
++++ cur2/tene-mashkaot/src/app/[locale]/layout.tsx	2026-09-30 14:01:30.000000000 +0000
+@@ -22,6 +22,9 @@
+ import { alternatesFor, ogLocale } from '@/lib/seo';
+ import '../globals.css';
+ import { fontVariables } from '../fonts';
++import { AnalyticsProvider } from '@/components/analytics/AnalyticsProvider';
++import { ConsentBanner } from '@/components/analytics/ConsentBanner';
++import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
+ 
+ 
+ export function generateStaticParams() {
+@@ -52,6 +55,8 @@
+     twitter: { card: 'summary_large_image', title: t('title'), description: t('description'), images: ['/og.png'] },
+     robots: { index: true, follow: true },
+     formatDetection: { telephone: false, address: false, email: false },
++    appleWebApp: { capable: true, title: siteName, statusBarStyle: 'black-translucent' },
++    ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ? { verification: { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION } } : {}),
+   };
+ }
+ 
+@@ -100,6 +105,9 @@
+               <FloatingWhatsApp number={settings.whatsapp} />
+               <AccessibilityMenu />
+               <AgeGate initiallyVerified={ageVerified} />
++              <ConsentBanner />
++              <AnalyticsProvider />
++              <ServiceWorkerRegistration />
+             </CartProvider>
+           </A11yProvider>
+         </NextIntlClientProvider>
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/app/[locale]/product/[slug]/opengraph-image.tsx cur2/tene-mashkaot/src/app/[locale]/product/[slug]/opengraph-image.tsx
+--- cur/tene-mashkaot/src/app/[locale]/product/[slug]/opengraph-image.tsx	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/app/[locale]/product/[slug]/opengraph-image.tsx	2026-09-30 20:31:08.000000000 +0000
+@@ -0,0 +1,23 @@
++import { getProductBySlug, getSiteSettings } from '@/lib/data';
++import { localize } from '@/lib/i18n-utils';
++import { OG_SIZE, renderOgCard } from '@/lib/og/card';
++import { jpegImageUrl } from '@/sanity/lib/image';
++
++export const size = OG_SIZE;
++export const contentType = 'image/jpeg';
++export const alt = 'תנא משקאות';
++export const revalidate = 86400;
++
++export default async function ProductOgImage({ params }: { params: Promise<{ locale: string; slug: string }> }) {
++  const { locale, slug } = await params;
++  const [product, settings] = await Promise.all([getProductBySlug(decodeURIComponent(slug)), getSiteSettings()]);
++  const brand = localize(settings.name, locale);
++  return renderOgCard({
++    locale,
++    brand,
++    title: product ? localize(product.title, locale) : brand,
++    subtitle: product?.category ? localize(product.category.title, locale) : undefined,
++    badge: locale === 'en' ? 'Elad · Wines, spirits & gifts' : 'חוויה של לגימה · אלעד',
++    photoUrl: jpegImageUrl(product?.images?.[0], 800, 920),
++  });
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/app/[locale]/product/[slug]/page.tsx cur2/tene-mashkaot/src/app/[locale]/product/[slug]/page.tsx
+--- cur/tene-mashkaot/src/app/[locale]/product/[slug]/page.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/app/[locale]/product/[slug]/page.tsx	2026-09-30 14:01:30.000000000 +0000
+@@ -15,6 +15,7 @@
+ import { absoluteUrl, alternatesFor, jsonLd } from '@/lib/seo';
+ import { imageUrl } from '@/sanity/lib/image';
+ import { headers } from 'next/headers';
++import { TrackOnMount } from '@/components/analytics/TrackOnMount';
+ 
+ 
+ type Params = Promise<{ locale: string; slug: string }>;
+@@ -206,6 +207,17 @@
+         </section>
+       )}
+ 
++      <TrackOnMount
++        event={{
++          name: 'view_item',
++          item: {
++            id: product._id,
++            name: localize(product.title, locale),
++            price,
++            category: product.category ? localize(product.category.title, locale) : undefined,
++          },
++        }}
++      />
+       <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: jsonLd(productJsonLd) }} />
+     </div>
+   );
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/app/[locale]/shop/[category]/opengraph-image.tsx cur2/tene-mashkaot/src/app/[locale]/shop/[category]/opengraph-image.tsx
+--- cur/tene-mashkaot/src/app/[locale]/shop/[category]/opengraph-image.tsx	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/app/[locale]/shop/[category]/opengraph-image.tsx	2026-09-30 20:31:08.000000000 +0000
+@@ -0,0 +1,24 @@
++import { getCategories, getSiteSettings } from '@/lib/data';
++import { localize } from '@/lib/i18n-utils';
++import { OG_SIZE, renderOgCard } from '@/lib/og/card';
++import { jpegImageUrl } from '@/sanity/lib/image';
++
++export const size = OG_SIZE;
++export const contentType = 'image/jpeg';
++export const alt = 'תנא משקאות';
++export const revalidate = 86400;
++
++export default async function CategoryOgImage({ params }: { params: Promise<{ locale: string; category: string }> }) {
++  const { locale, category: slug } = await params;
++  const [categories, settings] = await Promise.all([getCategories(), getSiteSettings()]);
++  const category = categories.find((c) => c.slug === decodeURIComponent(slug));
++  const brand = localize(settings.name, locale);
++  return renderOgCard({
++    locale,
++    brand,
++    title: category ? localize(category.title, locale) : brand,
++    subtitle: category ? localize(category.description, locale) || undefined : undefined,
++    badge: locale === 'en' ? 'Shop online · Delivery in Elad' : 'להזמנה באתר · משלוחים באלעד',
++    photoUrl: jpegImageUrl(category?.image, 800, 920),
++  });
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/app/api/orders/paid/route.ts cur2/tene-mashkaot/src/app/api/orders/paid/route.ts
+--- cur/tene-mashkaot/src/app/api/orders/paid/route.ts	2026-09-30 13:44:53.000000000 +0000
++++ cur2/tene-mashkaot/src/app/api/orders/paid/route.ts	2026-09-30 20:28:36.000000000 +0000
+@@ -1,3 +1,4 @@
++import * as Sentry from '@sentry/nextjs';
+ import { NextResponse, type NextRequest } from 'next/server';
+ import { parseBody } from 'next-sanity/webhook';
+ import { createDeliveryReceipt, getMorningConfig } from '@/lib/server/morning';
+@@ -55,6 +56,7 @@
+     return NextResponse.json({ ok: true, status: 'created', document: document.number ?? document.id });
+   } catch (error) {
+     console.error('[orders/paid] receipt failed', { orderId: order._id, error });
++    Sentry.captureException(error, { tags: { integration: 'morning' }, extra: { orderNumber: order.orderNumber } });
+     // Saving again (after fixing the cause) re-triggers the webhook, because "error" is not a final state.
+     await client
+       .patch(order._id)
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/app/api/payments/morning/notify/route.ts cur2/tene-mashkaot/src/app/api/payments/morning/notify/route.ts
+--- cur/tene-mashkaot/src/app/api/payments/morning/notify/route.ts	2026-09-30 13:44:53.000000000 +0000
++++ cur2/tene-mashkaot/src/app/api/payments/morning/notify/route.ts	2026-09-30 20:28:36.000000000 +0000
+@@ -1,3 +1,4 @@
++import * as Sentry from '@sentry/nextjs';
+ import { after, NextResponse, type NextRequest } from 'next/server';
+ import { getMorningConfig, getMorningDocument, type MorningDocumentInfo } from '@/lib/server/morning';
+ import { notifyOrderPaid } from '@/lib/server/notify';
+@@ -91,6 +92,15 @@
+     })
+     .commit();
+ 
++  if (!verified) {
++    // Surfaces in Sentry so the payload format can be confirmed; only field names are sent.
++    Sentry.captureMessage('Morning payment notice could not be verified', {
++      level: 'warning',
++      tags: { integration: 'morning' },
++      extra: { orderNumber: order.orderNumber, documentFound: Boolean(document), fields: Object.keys(payload).slice(0, 30) },
++    });
++  }
++
+   after(() =>
+     notifyOrderPaid({
+       orderNumber: order.orderNumber,
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/app/global-error.tsx cur2/tene-mashkaot/src/app/global-error.tsx
+--- cur/tene-mashkaot/src/app/global-error.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/app/global-error.tsx	2026-09-30 20:28:36.000000000 +0000
+@@ -1,5 +1,6 @@
+ 'use client';
+ 
++import * as Sentry from '@sentry/nextjs';
+ import { useEffect } from 'react';
+ import './globals.css';
+ 
+@@ -7,6 +8,7 @@
+ export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+   useEffect(() => {
+     console.error('[global-error]', error);
++    Sentry.captureException(error);
+   }, [error]);
+ 
+   return (
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/app/manifest.ts cur2/tene-mashkaot/src/app/manifest.ts
+--- cur/tene-mashkaot/src/app/manifest.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/app/manifest.ts	2026-09-30 20:27:23.000000000 +0000
+@@ -2,19 +2,29 @@
+ 
+ export default function manifest(): MetadataRoute.Manifest {
+   return {
++    id: '/he',
+     name: 'תנא משקאות – אלעד',
+     short_name: 'תנא משקאות',
+     description: 'חנות המשקאות של אלעד: יינות, אלכוהול ומארזי מתנה במשלוח.',
+-    start_url: '/he',
++    start_url: '/he?source=pwa',
+     scope: '/',
+     display: 'standalone',
++    orientation: 'portrait',
+     dir: 'rtl',
+     lang: 'he',
+     background_color: '#140508',
+     theme_color: '#140508',
++    categories: ['shopping', 'food'],
+     icons: [
++      { src: '/icons/icon-192.png', type: 'image/png', sizes: '192x192', purpose: 'any' },
++      { src: '/icons/icon-512.png', type: 'image/png', sizes: '512x512', purpose: 'any' },
++      { src: '/icons/icon-maskable-512.png', type: 'image/png', sizes: '512x512', purpose: 'maskable' },
+       { src: '/icon.svg', type: 'image/svg+xml', sizes: 'any' },
+-      { src: '/apple-icon.png', type: 'image/png', sizes: '180x180' },
++    ],
++    shortcuts: [
++      { name: 'לחנות', short_name: 'חנות', url: '/he/shop', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
++      { name: 'הסל שלי', short_name: 'סל', url: '/he/cart', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
++      { name: 'שעות וכתובת', short_name: 'ביקור', url: '/he/visit', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+     ],
+   };
+ }
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/analytics/AnalyticsProvider.tsx cur2/tene-mashkaot/src/components/analytics/AnalyticsProvider.tsx
+--- cur/tene-mashkaot/src/components/analytics/AnalyticsProvider.tsx	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/components/analytics/AnalyticsProvider.tsx	2026-09-30 14:00:21.000000000 +0000
+@@ -0,0 +1,91 @@
++'use client';
++
++import { usePathname } from 'next/navigation';
++import { useEffect, useRef, useState } from 'react';
++import { GA_ID, PIXEL_ID } from '@/lib/analytics';
++import { clearCookies, CONSENT_EVENT, readConsent, type ConsentState } from '@/lib/consent';
++
++/*
++ * Loaders replicate the official gtag.js / fbevents.js bootstrap snippets without inline scripts:
++ * this module is loaded through the nonce-trusted bundle, so under CSP 'strict-dynamic' the script
++ * tags it creates are allowed while injected third-party inline code is not.
++ */
++
++function loadGa(id: string) {
++  if (window.gtag) return;
++  window.dataLayer = window.dataLayer || [];
++  window.gtag = function gtag() {
++    // gtag.js expects the `arguments` object itself.
++    // eslint-disable-next-line prefer-rest-params
++    window.dataLayer!.push(arguments);
++  };
++  window.gtag('consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'granted' });
++  window.gtag('js', new Date());
++  window.gtag('config', id, { allow_google_signals: false, allow_ad_personalization_signals: false });
++  const script = document.createElement('script');
++  script.async = true;
++  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
++  document.head.appendChild(script);
++}
++
++function loadPixel(id: string) {
++  if (window.fbq) return;
++  const fbq = function (...args: unknown[]) {
++    if (fbq.callMethod) fbq.callMethod(...args);
++    else fbq.queue!.push(args);
++  } as NonNullable<Window['fbq']>;
++  fbq.push = fbq;
++  fbq.loaded = true;
++  fbq.version = '2.0';
++  fbq.queue = [];
++  window.fbq = fbq;
++  if (!window._fbq) window._fbq = fbq;
++  const script = document.createElement('script');
++  script.async = true;
++  script.src = 'https://connect.facebook.net/en_US/fbevents.js';
++  document.head.appendChild(script);
++  fbq('init', id);
++  fbq('track', 'PageView');
++}
++
++export function AnalyticsProvider() {
++  const pathname = usePathname();
++  const [consent, setConsent] = useState<ConsentState | null>(null);
++  const previous = useRef<ConsentState | null>(null);
++  const firstPath = useRef(true);
++
++  useEffect(() => {
++    setConsent(readConsent());
++    const onChange = (event: Event) => setConsent((event as CustomEvent<ConsentState>).detail);
++    window.addEventListener(CONSENT_EVENT, onChange);
++    return () => window.removeEventListener(CONSENT_EVENT, onChange);
++  }, []);
++
++  useEffect(() => {
++    const before = previous.current;
++    previous.current = consent;
++    if (!consent) return;
++    // Withdrawn consent: delete what the trackers stored and reload so their scripts are gone.
++    const withdrewAnalytics = before?.analytics && !consent.analytics;
++    const withdrewMarketing = before?.marketing && !consent.marketing;
++    if (withdrewAnalytics) clearCookies(/^_ga/);
++    if (withdrewMarketing) clearCookies(/^_fb/);
++    if (withdrewAnalytics || withdrewMarketing) {
++      window.location.reload();
++      return;
++    }
++    if (GA_ID && consent.analytics) loadGa(GA_ID);
++    if (PIXEL_ID && consent.marketing) loadPixel(PIXEL_ID);
++  }, [consent]);
++
++  // GA4 records client-side navigations itself (enhanced measurement); the Pixel needs a PageView.
++  useEffect(() => {
++    if (firstPath.current) {
++      firstPath.current = false;
++      return;
++    }
++    if (consent?.marketing && window.fbq) window.fbq('track', 'PageView');
++  }, [pathname, consent?.marketing]);
++
++  return null;
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/analytics/ConsentBanner.tsx cur2/tene-mashkaot/src/components/analytics/ConsentBanner.tsx
+--- cur/tene-mashkaot/src/components/analytics/ConsentBanner.tsx	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/components/analytics/ConsentBanner.tsx	2026-09-30 14:00:21.000000000 +0000
+@@ -0,0 +1,108 @@
++'use client';
++
++import { useTranslations } from 'next-intl';
++import { useEffect, useRef, useState } from 'react';
++import { Link } from '@/i18n/navigation';
++import { GA_ID, PIXEL_ID, TRACKING_CONFIGURED } from '@/lib/analytics';
++import { buttonStyles, cn } from '@/lib/cn';
++import { OPEN_CONSENT_EVENT, readConsent, writeConsent } from '@/lib/consent';
++
++export function ConsentBanner() {
++  const t = useTranslations('consent');
++  const [open, setOpen] = useState(false);
++  const [customize, setCustomize] = useState(false);
++  const [analytics, setAnalytics] = useState(true);
++  const [marketing, setMarketing] = useState(true);
++  const headingRef = useRef<HTMLHeadingElement>(null);
++
++  useEffect(() => {
++    if (!TRACKING_CONFIGURED) return;
++    const existing = readConsent();
++    if (existing) {
++      setAnalytics(existing.analytics);
++      setMarketing(existing.marketing);
++    } else {
++      setOpen(true);
++    }
++    const onOpen = () => {
++      const current = readConsent();
++      if (current) {
++        setAnalytics(current.analytics);
++        setMarketing(current.marketing);
++      }
++      setCustomize(true);
++      setOpen(true);
++      window.requestAnimationFrame(() => headingRef.current?.focus());
++    };
++    window.addEventListener(OPEN_CONSENT_EVENT, onOpen);
++    return () => window.removeEventListener(OPEN_CONSENT_EVENT, onOpen);
++  }, []);
++
++  if (!open) return null;
++
++  const save = (choice: { analytics: boolean; marketing: boolean }) => {
++    writeConsent(choice);
++    setOpen(false);
++  };
++
++  const toggle = (label: string, hint: string, checked: boolean, onChange?: (value: boolean) => void) => (
++    <label className={cn('flex items-start gap-3 rounded-xl border border-gold-400/15 px-3 py-2', !onChange && 'opacity-80')}>
++      <input
++        type="checkbox"
++        checked={checked}
++        disabled={!onChange}
++        onChange={(event) => onChange?.(event.target.checked)}
++        className="mt-1 h-4 w-4 accent-[#d4a95a]"
++      />
++      <span>
++        <span className="block text-sm font-semibold">{label}</span>
++        <span className="block text-xs text-cream/65">{hint}</span>
++      </span>
++    </label>
++  );
++
++  return (
++    <section
++      role="dialog"
++      aria-modal="false"
++      aria-labelledby="consent-title"
++      className="fixed inset-x-3 bottom-3 z-[90] mx-auto max-w-3xl rounded-2xl border border-gold-400/30 bg-wine-950/95 p-5 text-cream shadow-[0_20px_60px_-20px_rgb(0_0_0/0.8)] backdrop-blur sm:inset-x-6 sm:bottom-6"
++    >
++      <h2 id="consent-title" ref={headingRef} tabIndex={-1} className="font-display text-xl text-gold-200 outline-none">
++        {t('title')}
++      </h2>
++      <p className="mt-2 text-sm leading-relaxed text-cream/85">
++        {t('body')}{' '}
++        <Link href="/legal/cookies" className="font-semibold text-gold-200 underline underline-offset-4">
++          {t('policy')}
++        </Link>
++      </p>
++
++      {customize && (
++        <div className="mt-4 grid gap-2 sm:grid-cols-3">
++          {toggle(t('necessary'), t('necessaryHint'), true)}
++          {GA_ID && toggle(t('analytics'), t('analyticsHint'), analytics, setAnalytics)}
++          {PIXEL_ID && toggle(t('marketing'), t('marketingHint'), marketing, setMarketing)}
++        </div>
++      )}
++
++      <div className="mt-4 flex flex-wrap items-center gap-2">
++        <button type="button" className={cn(buttonStyles.primary, 'px-5 py-2.5 text-sm')} onClick={() => save({ analytics: true, marketing: true })}>
++          {t('acceptAll')}
++        </button>
++        <button type="button" className={cn(buttonStyles.secondary, 'px-5 py-2.5 text-sm')} onClick={() => save({ analytics: false, marketing: false })}>
++          {t('necessaryOnly')}
++        </button>
++        {customize ? (
++          <button type="button" className={cn(buttonStyles.ghost, 'text-sm underline underline-offset-4')} onClick={() => save({ analytics, marketing })}>
++            {t('saveChoice')}
++          </button>
++        ) : (
++          <button type="button" className={cn(buttonStyles.ghost, 'text-sm underline underline-offset-4')} onClick={() => setCustomize(true)}>
++            {t('customize')}
++          </button>
++        )}
++      </div>
++    </section>
++  );
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/analytics/CookieSettingsButton.tsx cur2/tene-mashkaot/src/components/analytics/CookieSettingsButton.tsx
+--- cur/tene-mashkaot/src/components/analytics/CookieSettingsButton.tsx	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/components/analytics/CookieSettingsButton.tsx	2026-09-30 14:00:21.000000000 +0000
+@@ -0,0 +1,15 @@
++'use client';
++
++import { useTranslations } from 'next-intl';
++import { TRACKING_CONFIGURED } from '@/lib/analytics';
++import { openConsentSettings } from '@/lib/consent';
++
++export function CookieSettingsButton({ className }: { className?: string }) {
++  const t = useTranslations('consent');
++  if (!TRACKING_CONFIGURED) return null;
++  return (
++    <button type="button" onClick={openConsentSettings} className={className}>
++      {t('settings')}
++    </button>
++  );
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/analytics/TrackOnMount.tsx cur2/tene-mashkaot/src/components/analytics/TrackOnMount.tsx
+--- cur/tene-mashkaot/src/components/analytics/TrackOnMount.tsx	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/components/analytics/TrackOnMount.tsx	2026-09-30 14:00:21.000000000 +0000
+@@ -0,0 +1,15 @@
++'use client';
++
++import { useEffect, useRef } from 'react';
++import { track, type AnalyticsEvent } from '@/lib/analytics';
++
++/** Fires one analytics event when a server-rendered page mounts (e.g. view_item on a product page). */
++export function TrackOnMount({ event }: { event: AnalyticsEvent }) {
++  const sent = useRef(false);
++  useEffect(() => {
++    if (sent.current) return;
++    sent.current = true;
++    track(event);
++  }, [event]);
++  return null;
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/cart/CartProvider.tsx cur2/tene-mashkaot/src/components/cart/CartProvider.tsx
+--- cur/tene-mashkaot/src/components/cart/CartProvider.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/components/cart/CartProvider.tsx	2026-09-30 14:01:30.000000000 +0000
+@@ -2,6 +2,7 @@
+ 
+ import { createContext, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+ import type { BalloonColor, RibbonColor, SanityImage } from '@/lib/types';
++import { track } from '@/lib/analytics';
+ 
+ const STORAGE_KEY = 'tene_cart_v1';
+ const MAX_QUANTITY = 50;
+@@ -127,6 +128,7 @@
+       if (current.length >= MAX_LINES) return current;
+       return [...current, { ...item, key, quantity: Math.min(Math.max(quantity, 1), MAX_QUANTITY) }];
+     });
++    track({ name: 'add_to_cart', item: { id: item.productId, name: item.snapshot.title, price: item.snapshot.price, quantity } });
+   }, []);
+ 
+   const setQuantity = useCallback((key: string, quantity: number) => {
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/checkout/CheckoutForm.tsx cur2/tene-mashkaot/src/components/checkout/CheckoutForm.tsx
+--- cur/tene-mashkaot/src/components/checkout/CheckoutForm.tsx	2026-09-30 13:46:39.000000000 +0000
++++ cur2/tene-mashkaot/src/components/checkout/CheckoutForm.tsx	2026-09-30 14:01:30.000000000 +0000
+@@ -14,6 +14,7 @@
+ import { Turnstile, type TurnstileHandle } from '../forms/Turnstile';
+ import { LAST_ORDER_KEY } from '@/lib/order-storage';
+ import { StarIcon, WhatsAppIcon } from '../ui/icons';
++import { itemsValue, rememberPurchase, track } from '@/lib/analytics';
+ 
+ type ErrorCode = Extract<PlaceOrderResult, { ok: false }>['error'] | 'network';
+ 
+@@ -63,6 +64,7 @@
+   const [email, setEmail] = useState('');
+   const [fulfillment, setFulfillment] = useState<'delivery' | 'pickup'>('delivery');
+   const [paymentMethod, setPaymentMethod] = useState<'card' | 'onDelivery'>(cardPaymentsEnabled ? 'card' : 'onDelivery');
++  const checkoutTracked = useRef(false);
+   const [zoneId, setZoneId] = useState('');
+   const [street, setStreet] = useState('');
+   const [apartment, setApartment] = useState('');
+@@ -138,6 +140,13 @@
+     if (first) window.requestAnimationFrame(() => document.getElementById(id(first))?.focus());
+   };
+ 
++  useEffect(() => {
++    if (!hydrated || checkoutTracked.current || items.length === 0) return;
++    checkoutTracked.current = true;
++    const tracked = items.map((i) => ({ id: i.productId, name: i.snapshot.title, price: i.snapshot.price, quantity: i.quantity }));
++    track({ name: 'begin_checkout', value: itemsValue(tracked), items: tracked });
++  }, [hydrated, items]);
++
+   const onSubmit = (e: FormEvent) => {
+     e.preventDefault();
+     if (pending || blocked) return;
+@@ -186,6 +195,15 @@
+         } catch {
+           // Session storage unavailable; the success page still shows the order number from the URL.
+         }
++        const purchased = items.map((i) => ({ id: i.productId, name: i.snapshot.title, price: i.snapshot.price, quantity: i.quantity }));
++        rememberPurchase({
++          transactionId: result.orderNumber,
++          value: totals?.total ?? itemsValue(purchased),
++          shipping: totals?.deliveryFee ?? 0,
++          coupon: totals?.coupon?.valid ? totals.coupon.code : undefined,
++          items: purchased,
++          paymentMethod,
++        });
+         clear();
+         if (result.paymentUrl) {
+           // Full navigation to the hosted, PCI-compliant payment page (Morning / Grow).
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/checkout/OrderSuccess.tsx cur2/tene-mashkaot/src/components/checkout/OrderSuccess.tsx
+--- cur/tene-mashkaot/src/components/checkout/OrderSuccess.tsx	2026-09-30 13:46:39.000000000 +0000
++++ cur2/tene-mashkaot/src/components/checkout/OrderSuccess.tsx	2026-09-30 14:01:30.000000000 +0000
+@@ -1,7 +1,8 @@
+ 'use client';
+ 
+ import { useTranslations } from 'next-intl';
+-import { useSyncExternalStore } from 'react';
++import { useEffect, useSyncExternalStore } from 'react';
++import { reportPurchaseOnce } from '@/lib/analytics';
+ import { Link } from '@/i18n/navigation';
+ import { buttonStyles, cn } from '@/lib/cn';
+ import { StarIcon, WhatsAppIcon } from '../ui/icons';
+@@ -78,6 +79,10 @@
+     () => null,
+   );
+   const stored = raw ? readStoredOrder(orderNumber) : null;
++
++  useEffect(() => {
++    reportPurchaseOnce(orderNumber, payment.status);
++  }, [orderNumber, payment.status]);
+   const whatsappUrl = stored?.whatsappUrl ?? fallbackWhatsapp;
+ 
+   return (
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/events/EventForm.tsx cur2/tene-mashkaot/src/components/events/EventForm.tsx
+--- cur/tene-mashkaot/src/components/events/EventForm.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/components/events/EventForm.tsx	2026-09-30 14:01:30.000000000 +0000
+@@ -6,6 +6,7 @@
+ import { buttonStyles, cn } from '@/lib/cn';
+ import { Turnstile, type TurnstileHandle } from '../forms/Turnstile';
+ import { StarIcon, WhatsAppIcon } from '../ui/icons';
++import { track } from '@/lib/analytics';
+ 
+ const EVENT_TYPES = ['barMitzvah', 'wedding', 'kiddush', 'brit', 'corporate', 'other'] as const;
+ 
+@@ -20,6 +21,7 @@
+   const locale = useLocale();
+   const uid = useId();
+   const id = (name: string) => `${uid}-${name}`;
++  const leadTracked = useRef(false);
+   const [state, formAction, pending] = useActionState<EventInquiryState, FormData>(submitEventInquiry, { status: 'idle' });
+   const [, startTransition] = useTransition();
+   const startedAt = useRef(0);
+@@ -33,6 +35,10 @@
+   useEffect(() => {
+     if (state.status === 'idle') return;
+     if (state.status === 'error') turnstile.current?.reset();
++    if (state.status === 'success' && !leadTracked.current) {
++      leadTracked.current = true;
++      track({ name: 'generate_lead', leadType: 'event' });
++    }
+     statusRef.current?.focus();
+   }, [state]);
+ 
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/layout/Footer.tsx cur2/tene-mashkaot/src/components/layout/Footer.tsx
+--- cur/tene-mashkaot/src/components/layout/Footer.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/components/layout/Footer.tsx	2026-09-30 14:01:30.000000000 +0000
+@@ -10,6 +10,7 @@
+ import { HoursList } from './HoursList';
+ import { Logo } from './Logo';
+ import { NAV_ITEMS } from './nav-items';
++import { CookieSettingsButton } from '../analytics/CookieSettingsButton';
+ 
+ const LEGAL_LINKS = ['terms', 'privacy', 'accessibility', 'shipping-returns', 'cookies'] as const;
+ 
+@@ -134,6 +135,7 @@
+                 </li>
+               ))}
+             </ul>
++            <CookieSettingsButton className="mt-2 text-sm text-cream/80 underline-offset-4 hover:text-gold-200 hover:underline" />
+           </nav>
+         </div>
+       </div>
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/layout/SiteBanners.tsx cur2/tene-mashkaot/src/components/layout/SiteBanners.tsx
+--- cur/tene-mashkaot/src/components/layout/SiteBanners.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/components/layout/SiteBanners.tsx	2026-09-30 20:27:43.000000000 +0000
+@@ -17,7 +17,7 @@
+   return (
+     <div className="relative z-[51]">
+       {ordering.blocked && (
+-        <p role="status" className="flex items-center justify-center gap-2 bg-gold-400 px-4 py-2 text-center text-sm font-semibold text-wine-950">
++        <p role="status" data-live-status className="flex items-center justify-center gap-2 bg-gold-400 px-4 py-2 text-center text-sm font-semibold text-wine-950">
+           <StarIcon className="h-4 w-4 shrink-0" />
+           {t('banner', { time: ordering.reopensAt ? formatDateTime(ordering.reopensAt, locale) : '' })}
+         </p>
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/pwa/ServiceWorkerRegistration.tsx cur2/tene-mashkaot/src/components/pwa/ServiceWorkerRegistration.tsx
+--- cur/tene-mashkaot/src/components/pwa/ServiceWorkerRegistration.tsx	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/components/pwa/ServiceWorkerRegistration.tsx	2026-09-30 14:01:30.000000000 +0000
+@@ -0,0 +1,16 @@
++'use client';
++
++import { useEffect } from 'react';
++
++/** Registers the offline service worker (production only, after the page has loaded). */
++export function ServiceWorkerRegistration() {
++  useEffect(() => {
++    if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;
++    const register = () => {
++      navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch((error) => console.warn('[sw] registration failed', error));
++    };
++    if (document.readyState === 'complete') register();
++    else window.addEventListener('load', register, { once: true });
++  }, []);
++  return null;
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/shop/PriceTag.tsx cur2/tene-mashkaot/src/components/shop/PriceTag.tsx
+--- cur/tene-mashkaot/src/components/shop/PriceTag.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/components/shop/PriceTag.tsx	2026-09-30 20:27:23.000000000 +0000
+@@ -16,7 +16,7 @@
+   const t = await getTranslations({ locale, namespace: 'product' });
+   const onSale = price < basePrice;
+   return (
+-    <p className="flex flex-wrap items-baseline gap-x-2">
++    <p data-price className="flex flex-wrap items-baseline gap-x-2">
+       <span className={cn('font-bold text-gold-300', size === 'lg' ? 'text-3xl' : 'text-lg')}>{formatPrice(price, locale)}</span>
+       {onSale && (
+         <span className={cn('text-cream/50 line-through', size === 'lg' ? 'text-lg' : 'text-sm')}>
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/components/visit/OpenNowBadge.tsx cur2/tene-mashkaot/src/components/visit/OpenNowBadge.tsx
+--- cur/tene-mashkaot/src/components/visit/OpenNowBadge.tsx	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/components/visit/OpenNowBadge.tsx	2026-09-30 20:27:23.000000000 +0000
+@@ -9,7 +9,7 @@
+   const status = getOpenStatus(new Date(), settings, delivery);
+ 
+   return (
+-    <p className={cn('inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold', status.isOpen ? 'border-[#4ade80]/40 text-[#86efac]' : 'border-cream/20 text-cream/75', className)}>
++    <p data-live-status className={cn('inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold', status.isOpen ? 'border-[#4ade80]/40 text-[#86efac]' : 'border-cream/20 text-cream/75', className)}>
+       <span aria-hidden className={cn('h-2.5 w-2.5 rounded-full', status.isOpen ? 'animate-pulse bg-[#4ade80]' : 'bg-cream/40')} />
+       {status.isOpen ? t('openNow') : t('closedNow')}
+       {status.isOpen && status.closesAt && <span className="font-normal opacity-80">· {t('closesAt', { time: formatTime(status.closesAt, locale) })}</span>}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/content/legal.ts cur2/tene-mashkaot/src/content/legal.ts
+--- cur/tene-mashkaot/src/content/legal.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/content/legal.ts	2026-09-30 20:24:47.000000000 +0000
+@@ -19,7 +19,7 @@
+   sections: LegalSection[];
+ }
+ 
+-export const LEGAL_UPDATED_AT = '2026-09-29';
++export const LEGAL_UPDATED_AT = '2026-09-30';
+ 
+ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>> = {
+   he: {
+@@ -116,7 +116,7 @@
+         {
+           heading: 'מסירת מידע לצדדים שלישיים',
+           paragraphs: [
+-            'איננו מוכרים את המידע שלכם. המידע נשמר ומעובד אצל ספקי שירות הפועלים עבורנו בלבד: מערכת ניהול התוכן וההזמנות (Sanity), שירות אחסון האתר (Vercel), שירות שליחת מיילים (Resend), שירות הגנה מפני רובוטים (Cloudflare Turnstile) ושירות הגבלת קצב בקשות (Upstash). חלק מהספקים מאחסנים מידע מחוץ לישראל, בהתאם להוראות הדין.',
++            'איננו מוכרים את המידע שלכם. המידע נשמר ומעובד אצל ספקי שירות הפועלים עבורנו בלבד: מערכת ניהול התוכן וההזמנות (Sanity), שירות אחסון האתר (Vercel), שירות שליחת מיילים (Resend), שירות הגנה מפני רובוטים (Cloudflare Turnstile), שירות הגבלת קצב בקשות (Upstash), סליקת אשראי והפקת קבלות (Morning ו-Grow – פרטי הכרטיס מוזנים אצלם בלבד ואינם מגיעים אלינו), הודעות וואטסאפ תפעוליות לחנות (Meta), גיליון ההזמנות הפנימי של החנות (Google) וניטור תקלות טכניות (Sentry, ללא פרטים מזהים). באישורכם בלבד: מדידת שימוש (Google Analytics) ומדידת פרסום (Meta Pixel). חלק מהספקים מאחסנים מידע מחוץ לישראל, בהתאם להוראות הדין.',
+             'מידע עשוי להימסר גם אם נידרש לכך על פי דין.',
+           ],
+         },
+@@ -215,7 +215,7 @@
+       updatedAt: LEGAL_UPDATED_AT,
+       sections: [
+         {
+-          paragraphs: ['האתר משתמש בעוגיות ובאחסון מקומי בדפדפן במידה המינימלית הנדרשת לתפעולו. איננו משתמשים בעוגיות פרסום או במעקב שיווקי.'],
++          paragraphs: ['האתר משתמש בעוגיות ובאחסון מקומי בדפדפן לצורך תפעולו. עוגיות סטטיסטיקה (Google Analytics) ועוגיות שיווק (Meta Pixel) מופעלות רק אם אישרתם אותן בבאנר העוגיות, וניתן לשנות את הבחירה בכל עת דרך "הגדרות עוגיות" בתחתית האתר.'],
+         },
+         {
+           heading: 'מה נשמר',
+@@ -226,11 +226,20 @@
+             'עוגיית שפה – לזכירת השפה המועדפת.',
+             'אימות Cloudflare Turnstile בטפסים – להגנה מפני רובוטים.',
+             'מדידת תנועה אנונימית של Vercel Analytics – ללא עוגיות וללא זיהוי אישי.',
++            'בחירת העוגיות שלכם (עוגייה בשם tene_consent) – נשמרת עד 180 יום.',
++            'שמירת עמודים ותמונות לגלישה גם בלי חיבור (Service Worker) – ללא פרטים אישיים, מחירים או סל.',
++          ],
++        },
++        {
++          heading: 'עוגיות שמופעלות רק באישורכם',
++          list: [
++            'סטטיסטיקה – Google Analytics 4: אילו עמודים ומוצרים נצפים, כדי לשפר את האתר. עוגיות שמתחילות ב-_ga. אותות פרסום של Google כבויים.',
++            'שיווק – Meta Pixel: מדידת האפקטיביות של פרסום בפייסבוק ובאינסטגרם. עוגיית _fbp.',
+           ],
+         },
+         {
+           heading: 'ניהול העוגיות',
+-          paragraphs: ['ניתן למחוק עוגיות ונתוני אתרים דרך הגדרות הדפדפן. מחיקתם תאפס את סל הקניות, את הגדרות הנגישות ואת אישור הגיל.'],
++          paragraphs: ['ניתן לשנות או לבטל את ההסכמה בכל עת דרך "הגדרות עוגיות" בתחתית האתר. ביטול מוחק את עוגיות המדידה. אפשר גם למחוק עוגיות ונתוני אתרים דרך הגדרות הדפדפן; מחיקתם תאפס את סל הקניות, את הגדרות הנגישות ואת אישור הגיל.'],
+         },
+       ],
+     },
+@@ -302,7 +311,7 @@
+         {
+           heading: 'Sharing with third parties',
+           paragraphs: [
+-            'We never sell your information. It is stored and processed only by service providers acting on our behalf: the content and order management system (Sanity), hosting (Vercel), email delivery (Resend), bot protection (Cloudflare Turnstile) and rate limiting (Upstash). Some providers store data outside Israel, as permitted by law.',
++            'We never sell your information. It is stored and processed only by service providers acting on our behalf: the content and order management system (Sanity), hosting (Vercel), email delivery (Resend), bot protection (Cloudflare Turnstile), rate limiting (Upstash), card payments and receipts (Morning and Grow – card details are entered on their page only and never reach us), operational WhatsApp messages to the store (Meta), the store’s internal order sheet (Google) and technical error monitoring (Sentry, without identifying details). Only with your consent: usage statistics (Google Analytics) and ad measurement (Meta Pixel). Some providers store data outside Israel, as permitted by law.',
+             'Information may also be disclosed when required by law.',
+           ],
+         },
+@@ -369,7 +378,7 @@
+       title: 'Cookie Policy',
+       updatedAt: LEGAL_UPDATED_AT,
+       sections: [
+-        { paragraphs: ['The website uses cookies and local browser storage only to the minimum extent required for it to work. We do not use advertising or marketing tracking cookies.'] },
++        { paragraphs: ['The website uses cookies and local browser storage to work. Statistics cookies (Google Analytics) and marketing cookies (Meta Pixel) are only enabled if you accept them in the cookie banner, and you can change your choice at any time via "Cookie settings" at the bottom of the site.'] },
+         {
+           heading: 'What is stored',
+           list: [
+@@ -379,6 +388,10 @@
+             'Language cookie – to remember your preferred language.',
+             'Cloudflare Turnstile verification on forms – for bot protection.',
+             'Anonymous Vercel Analytics traffic measurement – cookie-free and without personal identification.',
++            'Your cookie choice (tene_consent cookie) – kept for up to 180 days.',
++            'Offline copies of pages and images (service worker) – no personal details, prices or cart.',
++            'Only with your consent – Statistics: Google Analytics 4 (_ga cookies), with Google advertising signals off.',
++            'Only with your consent – Marketing: Meta Pixel (_fbp cookie) to measure Facebook and Instagram ads.',
+           ],
+         },
+         { heading: 'Managing cookies', paragraphs: ['You can delete cookies and site data in your browser settings. Doing so resets your cart, accessibility settings and age confirmation.'] },
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/instrumentation-client.ts cur2/tene-mashkaot/src/instrumentation-client.ts
+--- cur/tene-mashkaot/src/instrumentation-client.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/instrumentation-client.ts	2026-09-30 20:29:18.000000000 +0000
+@@ -0,0 +1,37 @@
++import * as Sentry from '@sentry/nextjs';
++
++const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
++
++Sentry.init({
++  dsn,
++  enabled: Boolean(dsn) && process.env.NODE_ENV === 'production',
++  environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
++  tracesSampleRate: 0.1,
++  // Privacy: no user info, cookies, headers or bodies (order forms carry names, phones and
++  // addresses), and the payment-notification secret is stripped from URLs.
++  dataCollection: {
++    userInfo: false,
++    cookies: false,
++    httpHeaders: false,
++    httpBodies: [],
++    urlQueryParams: { deny: ['token'] },
++  },
++  // No session replay: keeps the bundle light and customers' screens private.
++  ignoreErrors: [
++    'ResizeObserver loop limit exceeded',
++    'ResizeObserver loop completed with undelivered notifications',
++    'Non-Error promise rejection captured',
++    /^NetworkError/,
++    /^Load failed$/,
++    /AbortError/,
++  ],
++  beforeSend(event) {
++    if (event.request) {
++      delete event.request.cookies;
++      delete event.request.headers;
++    }
++    return event;
++  },
++});
++
++export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/instrumentation.ts cur2/tene-mashkaot/src/instrumentation.ts
+--- cur/tene-mashkaot/src/instrumentation.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/instrumentation.ts	2026-09-30 20:28:36.000000000 +0000
+@@ -0,0 +1,9 @@
++import * as Sentry from '@sentry/nextjs';
++
++export async function register() {
++  if (process.env.NEXT_RUNTIME === 'nodejs') await import('../sentry.server.config');
++  if (process.env.NEXT_RUNTIME === 'edge') await import('../sentry.edge.config');
++}
++
++/** Reports errors from Server Components, route handlers and server actions. */
++export const onRequestError = Sentry.captureRequestError;
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/lib/analytics.ts cur2/tene-mashkaot/src/lib/analytics.ts
+--- cur/tene-mashkaot/src/lib/analytics.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/lib/analytics.ts	2026-09-30 14:00:21.000000000 +0000
+@@ -0,0 +1,158 @@
++import { readConsent } from './consent';
++
++/**
++ * GA4 + Meta Pixel e-commerce events. Every call is a no-op unless the visitor opted in to the
++ * matching category and the ID is configured, so components can call `track` unconditionally.
++ */
++
++type Fbq = ((...args: unknown[]) => void) & { callMethod?: (...args: unknown[]) => void; queue?: unknown[]; push?: unknown; loaded?: boolean; version?: string };
++
++declare global {
++  interface Window {
++    dataLayer?: unknown[];
++    gtag?: (...args: unknown[]) => void;
++    fbq?: Fbq;
++    _fbq?: Fbq;
++  }
++}
++
++export const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? '';
++export const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? '';
++export const TRACKING_CONFIGURED = Boolean(GA_ID || PIXEL_ID);
++
++export interface AnalyticsItem {
++  id: string;
++  name: string;
++  price: number;
++  quantity?: number;
++  category?: string;
++}
++
++export type AnalyticsEvent =
++  | { name: 'view_item'; item: AnalyticsItem }
++  | { name: 'add_to_cart'; item: AnalyticsItem }
++  | { name: 'begin_checkout'; value: number; items: AnalyticsItem[] }
++  | { name: 'purchase'; transactionId: string; value: number; items: AnalyticsItem[]; shipping?: number; coupon?: string }
++  | { name: 'generate_lead'; leadType: string };
++
++const CURRENCY = 'ILS';
++const gaItem = (item: AnalyticsItem) => ({
++  item_id: item.id,
++  item_name: item.name,
++  price: item.price,
++  quantity: item.quantity ?? 1,
++  ...(item.category ? { item_category: item.category } : {}),
++});
++const itemsValue = (items: AnalyticsItem[]) => Math.round(items.reduce((sum, item) => sum + item.price * (item.quantity ?? 1), 0) * 100) / 100;
++
++function sendGa(event: AnalyticsEvent) {
++  const gtag = window.gtag;
++  if (!gtag) return;
++  switch (event.name) {
++    case 'view_item':
++    case 'add_to_cart':
++      gtag('event', event.name, { currency: CURRENCY, value: event.item.price * (event.item.quantity ?? 1), items: [gaItem(event.item)] });
++      break;
++    case 'begin_checkout':
++      gtag('event', 'begin_checkout', { currency: CURRENCY, value: event.value, items: event.items.map(gaItem) });
++      break;
++    case 'purchase':
++      gtag('event', 'purchase', {
++        transaction_id: event.transactionId,
++        currency: CURRENCY,
++        value: event.value,
++        shipping: event.shipping ?? 0,
++        ...(event.coupon ? { coupon: event.coupon } : {}),
++        items: event.items.map(gaItem),
++      });
++      break;
++    case 'generate_lead':
++      gtag('event', 'generate_lead', { lead_type: event.leadType });
++      break;
++  }
++}
++
++function sendPixel(event: AnalyticsEvent) {
++  const fbq = window.fbq;
++  if (!fbq) return;
++  switch (event.name) {
++    case 'view_item':
++      fbq('track', 'ViewContent', { content_ids: [event.item.id], content_name: event.item.name, content_type: 'product', value: event.item.price, currency: CURRENCY });
++      break;
++    case 'add_to_cart':
++      fbq('track', 'AddToCart', {
++        content_ids: [event.item.id],
++        content_name: event.item.name,
++        content_type: 'product',
++        value: event.item.price * (event.item.quantity ?? 1),
++        currency: CURRENCY,
++      });
++      break;
++    case 'begin_checkout':
++      fbq('track', 'InitiateCheckout', { content_ids: event.items.map((i) => i.id), num_items: event.items.length, value: event.value, currency: CURRENCY });
++      break;
++    case 'purchase':
++      // eventID lets a future server-side Conversions API deduplicate against this browser event.
++      fbq(
++        'track',
++        'Purchase',
++        { content_ids: event.items.map((i) => i.id), content_type: 'product', num_items: event.items.length, value: event.value, currency: CURRENCY },
++        { eventID: event.transactionId },
++      );
++      break;
++    case 'generate_lead':
++      fbq('track', 'Lead', { content_name: event.leadType });
++      break;
++  }
++}
++
++export function track(event: AnalyticsEvent): void {
++  if (typeof window === 'undefined' || !TRACKING_CONFIGURED) return;
++  const consent = readConsent();
++  try {
++    if (consent?.analytics) sendGa(event);
++    if (consent?.marketing) sendPixel(event);
++  } catch (error) {
++    console.warn('[analytics] event failed', error);
++  }
++}
++
++/** Order details kept between checkout and the order page, where the purchase is reported. */
++export const PENDING_PURCHASE_KEY = 'tene_pending_purchase';
++
++export interface PendingPurchase {
++  transactionId: string;
++  value: number;
++  shipping: number;
++  coupon?: string;
++  items: AnalyticsItem[];
++  paymentMethod: 'card' | 'onDelivery';
++}
++
++export function rememberPurchase(purchase: PendingPurchase): void {
++  try {
++    window.sessionStorage.setItem(PENDING_PURCHASE_KEY, JSON.stringify(purchase));
++  } catch {
++    // Storage unavailable: the purchase simply isn't reported.
++  }
++}
++
++/** Reports the purchase once per order (a refreshed order page does not double count). */
++export function reportPurchaseOnce(orderNumber: string, paymentStatus?: string): void {
++  try {
++    const raw = window.sessionStorage.getItem(PENDING_PURCHASE_KEY);
++    if (!raw) return;
++    const purchase = JSON.parse(raw) as PendingPurchase;
++    if (purchase.transactionId !== orderNumber) return;
++    if (purchase.paymentMethod === 'card' && paymentStatus !== 'paid') return;
++    const sentKey = `tene_purchase_sent:${orderNumber}`;
++    if (window.localStorage.getItem(sentKey)) return;
++    track({ name: 'purchase', transactionId: orderNumber, value: purchase.value, items: purchase.items, shipping: purchase.shipping, coupon: purchase.coupon });
++    window.localStorage.setItem(sentKey, '1');
++    window.sessionStorage.removeItem(PENDING_PURCHASE_KEY);
++  } catch {
++    // Ignore malformed storage.
++  }
++}
++
++export { itemsValue };
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/lib/consent.ts cur2/tene-mashkaot/src/lib/consent.ts
+--- cur/tene-mashkaot/src/lib/consent.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/lib/consent.ts	2026-09-30 14:00:21.000000000 +0000
+@@ -0,0 +1,56 @@
++/**
++ * Cookie consent (client side). Statistics (GA4) and marketing (Meta Pixel) load only after an explicit
++ * opt-in; strictly necessary storage (cart, age check, accessibility, language) never needs consent.
++ */
++export const CONSENT_COOKIE = 'tene_consent';
++export const CONSENT_VERSION = 1;
++export const CONSENT_EVENT = 'tene:consent-change';
++export const OPEN_CONSENT_EVENT = 'tene:open-consent';
++const MAX_AGE_SECONDS = 60 * 60 * 24 * 180;
++
++export interface ConsentState {
++  v: number;
++  analytics: boolean;
++  marketing: boolean;
++  at: string;
++}
++
++export function readConsent(): ConsentState | null {
++  if (typeof document === 'undefined') return null;
++  const raw = document.cookie
++    .split('; ')
++    .find((part) => part.startsWith(`${CONSENT_COOKIE}=`))
++    ?.slice(CONSENT_COOKIE.length + 1);
++  if (!raw) return null;
++  try {
++    const parsed = JSON.parse(decodeURIComponent(raw)) as ConsentState;
++    return parsed?.v === CONSENT_VERSION ? parsed : null;
++  } catch {
++    return null;
++  }
++}
++
++export function writeConsent(choice: { analytics: boolean; marketing: boolean }): ConsentState {
++  const state: ConsentState = { v: CONSENT_VERSION, analytics: choice.analytics, marketing: choice.marketing, at: new Date().toISOString() };
++  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
++  document.cookie = `${CONSENT_COOKIE}=${encodeURIComponent(JSON.stringify(state))}; Max-Age=${MAX_AGE_SECONDS}; Path=/; SameSite=Lax${secure}`;
++  window.dispatchEvent(new CustomEvent<ConsentState>(CONSENT_EVENT, { detail: state }));
++  return state;
++}
++
++export function openConsentSettings(): void {
++  window.dispatchEvent(new Event(OPEN_CONSENT_EVENT));
++}
++
++/** Removes first-party cookies set by a tracker after consent is withdrawn. */
++export function clearCookies(pattern: RegExp): void {
++  const host = window.location.hostname;
++  const domains = ['', host, `.${host}`, `.${host.split('.').slice(-2).join('.')}`];
++  for (const part of document.cookie.split('; ')) {
++    const name = part.split('=')[0];
++    if (!name || !pattern.test(name)) continue;
++    for (const domain of domains) {
++      document.cookie = `${name}=; Max-Age=0; Path=/${domain ? `; Domain=${domain}` : ''}`;
++    }
++  }
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/lib/og/bidi.ts cur2/tene-mashkaot/src/lib/og/bidi.ts
+--- cur/tene-mashkaot/src/lib/og/bidi.ts	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/lib/og/bidi.ts	2026-09-30 20:31:08.000000000 +0000
+@@ -0,0 +1,70 @@
++/**
++ * Minimal visual reordering for Hebrew text in generated images: the image renderer (Satori) lays
++ * glyphs out left-to-right and has no bidi support. Hebrew has no contextual letter forms, so
++ * reversing each Hebrew word and the order of the words gives the correct visual line, while
++ * runs of Latin words and numbers ("Tura Merlot 2021") keep their own reading order.
++ */
++
++const HEBREW = /[\u0590-\u05FF\uFB1D-\uFB4F]/;
++const LTR_CHAR = /[A-Za-z0-9\u00C0-\u024F]/;
++const MIRROR: Record<string, string> = { '(': ')', ')': '(', '[': ']', ']': '[', '{': '}', '}': '{', '<': '>', '>': '<', '«': '»', '»': '«' };
++
++const reverseWord = (word: string) =>
++  [...word]
++    .reverse()
++    .map((ch) => MIRROR[ch] ?? ch)
++    .join('');
++
++export function hasHebrew(text: string): boolean {
++  return HEBREW.test(text);
++}
++
++/** Converts one logical line of right-to-left text into its visual (left-to-right) form. */
++export function visualLine(line: string): string {
++  if (!hasHebrew(line)) return line;
++  const words = line.trim().split(/\s+/);
++  const units: string[] = [];
++  let ltrRun: string[] = [];
++  const flush = () => {
++    if (ltrRun.length) units.push(ltrRun.join(' '));
++    ltrRun = [];
++  };
++  for (const word of words) {
++    if (HEBREW.test(word)) {
++      flush();
++      units.push(reverseWord(word));
++    } else if (LTR_CHAR.test(word)) {
++      ltrRun.push(word);
++    } else if (ltrRun.length) {
++      // Neutral punctuation between left-to-right words stays with them ("Tura – 2021").
++      ltrRun.push(word);
++    } else {
++      units.push(reverseWord(word));
++    }
++  }
++  flush();
++  return units.reverse().join(' ');
++}
++
++/** Greedy word wrap in logical order (before reordering), capped at `maxLines` with an ellipsis. */
++export function wrapLines(text: string, maxChars: number, maxLines: number): string[] {
++  const words = text.trim().split(/\s+/).filter(Boolean);
++  const lines: string[] = [];
++  let current = '';
++  for (const word of words) {
++    const candidate = current ? `${current} ${word}` : word;
++    if (candidate.length > maxChars && current) {
++      lines.push(current);
++      current = word;
++    } else {
++      current = candidate;
++    }
++  }
++  if (current) lines.push(current);
++  if (lines.length > maxLines) {
++    const kept = lines.slice(0, maxLines);
++    kept[maxLines - 1] = `${kept[maxLines - 1].replace(/[\s,.–-]+$/, '')}…`;
++    return kept;
++  }
++  return lines;
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/lib/og/card.tsx cur2/tene-mashkaot/src/lib/og/card.tsx
+--- cur/tene-mashkaot/src/lib/og/card.tsx	1970-01-01 00:00:00.000000000 +0000
++++ cur2/tene-mashkaot/src/lib/og/card.tsx	2026-09-30 20:32:13.000000000 +0000
+@@ -0,0 +1,175 @@
++import 'server-only';
++import { readFile } from 'node:fs/promises';
++import { join } from 'node:path';
++import { ImageResponse } from 'next/og';
++import sharp from 'sharp';
++import { hasHebrew, visualLine, wrapLines } from './bidi';
++
++export const OG_SIZE = { width: 1200, height: 630 };
++
++type FontSpec = { name: string; data: Buffer; weight: 400 | 700; style: 'normal' };
++let fontsPromise: Promise<FontSpec[]> | null = null;
++
++/**
++ * WOFF (not WOFF2): the image renderer only reads TTF/OTF/WOFF. Each subset gets its own family name
++ * and texts list both, because same-named fonts are de-duplicated and the Latin glyphs would be lost.
++ */
++function loadFonts(): Promise<FontSpec[]> {
++  fontsPromise ??= Promise.all(
++    (
++      [
++        ['SuezHe', 'suez-one-hebrew-400-normal.woff', 400],
++        ['SuezLatin', 'suez-one-latin-400-normal.woff', 400],
++        ['HeeboHe', 'heebo-hebrew-700-normal.woff', 700],
++        ['HeeboLatin', 'heebo-latin-700-normal.woff', 700],
++      ] as const
++    ).map(async ([name, file, weight]) => ({
++      name,
++      data: await readFile(join(process.cwd(), 'assets/og', file)),
++      weight,
++      style: 'normal' as const,
++    })),
++  );
++  return fontsPromise;
++}
++
++/** Downloads the photo up front (bounded), so a slow image host can never hang the preview. */
++async function fetchPhoto(url: string | null | undefined): Promise<string | null> {
++  if (!url) return null;
++  try {
++    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
++    const type = res.headers.get('content-type') ?? '';
++    if (!res.ok || !/^image\/(jpeg|png)/.test(type)) return null;
++    return `data:${type};base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}`;
++  } catch {
++    return null;
++  }
++}
++
++function Star({ size }: { size: number }) {
++  return (
++    <svg width={size} height={size} viewBox="0 0 64 64">
++      <path fill="#d4a94f" d="M32 8l5.6 13.2L52 22.4l-10.9 9.4 3.3 14.1L32 38.3 19.6 45.9l3.3-14.1L12 22.4l14.4-1.2z" />
++    </svg>
++  );
++}
++
++export interface OgCardInput {
++  locale: string;
++  brand: string;
++  title: string;
++  subtitle?: string;
++  badge: string;
++  photoUrl?: string | null;
++}
++
++/**
++ * Branded 1200×630 share image, returned as JPEG: WhatsApp skips large previews, and a photo inside a
++ * PNG easily passes 500KB, while this JPEG stays around 60–120KB. No prices – chats cache previews.
++ */
++export async function renderOgCard({ locale, brand, title, subtitle, badge, photoUrl }: OgCardInput): Promise<Response> {
++  const rtl = locale !== 'en';
++  const show = (text: string) => (rtl && hasHebrew(text) ? visualLine(text) : text);
++  const titleSize = title.length <= 20 ? 66 : title.length <= 38 ? 56 : 48;
++  const lines = wrapLines(title, Math.floor(560 / (titleSize * 0.52)), 3).map(show);
++  const [fonts, photo] = await Promise.all([loadFonts(), fetchPhoto(photoUrl)]);
++
++  const image = new ImageResponse(
++    (
++      <div
++        style={{
++          width: '100%',
++          height: '100%',
++          display: 'flex',
++          flexDirection: rtl ? 'row' : 'row-reverse',
++          position: 'relative',
++          backgroundImage: 'linear-gradient(135deg, #140508 0%, #2a0a10 55%, #3a0d15 100%)',
++          fontFamily: 'HeeboHe, HeeboLatin',
++        }}
++      >
++        <div
++          style={{
++            position: 'absolute',
++            top: 24,
++            left: 24,
++            right: 24,
++            bottom: 24,
++            display: 'flex',
++            border: '2px solid rgba(207,166,105,0.55)',
++            borderRadius: 28,
++          }}
++        />
++        <div style={{ width: 520, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
++          <div
++            style={{
++              width: 440,
++              height: 500,
++              display: 'flex',
++              alignItems: 'center',
++              justifyContent: 'center',
++              borderRadius: 24,
++              backgroundImage: 'radial-gradient(circle at 50% 42%, #fbf4e4 0%, #e7d4ad 72%, #c9ab73 100%)',
++            }}
++          >
++            {photo ? <img src={photo} width={400} height={460} style={{ objectFit: 'contain' }} alt="" /> : <Star size={220} />}
++          </div>
++        </div>
++        <div
++          style={{
++            flex: 1,
++            height: '100%',
++            display: 'flex',
++            flexDirection: 'column',
++            justifyContent: 'center',
++            alignItems: rtl ? 'flex-end' : 'flex-start',
++            padding: rtl ? '60px 80px 60px 16px' : '60px 16px 60px 80px',
++          }}
++        >
++          <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#cfa669', fontSize: 30, fontFamily: 'SuezHe, SuezLatin' }}>
++            {rtl ? (
++              <>
++                <span>{show(brand)}</span>
++                <Star size={34} />
++              </>
++            ) : (
++              <>
++                <Star size={34} />
++                <span>{brand}</span>
++              </>
++            )}
++          </div>
++          <div style={{ display: 'flex', flexDirection: 'column', alignItems: rtl ? 'flex-end' : 'flex-start', marginTop: 22 }}>
++            {lines.map((line, index) => (
++              <div key={index} style={{ display: 'flex', fontFamily: 'SuezHe, SuezLatin', fontSize: titleSize, lineHeight: 1.18, color: '#f7f1e6' }}>
++                {line}
++              </div>
++            ))}
++          </div>
++          {subtitle ? <div style={{ display: 'flex', marginTop: 18, fontSize: 30, fontWeight: 700, color: 'rgba(247,241,230,0.72)' }}>{show(subtitle)}</div> : null}
++          <div
++            style={{
++              display: 'flex',
++              marginTop: 36,
++              padding: '10px 26px',
++              borderRadius: 999,
++              backgroundColor: '#cfa669',
++              color: '#140508',
++              fontSize: 26,
++              fontWeight: 700,
++            }}
++          >
++            {show(badge)}
++          </div>
++        </div>
++      </div>
++    ),
++    { ...OG_SIZE, fonts },
++  );
++
++  const jpeg = await sharp(Buffer.from(await image.arrayBuffer()))
++    .jpeg({ quality: 82, mozjpeg: true })
++    .toBuffer();
++  return new Response(new Uint8Array(jpeg), {
++    headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800' },
++  });
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/proxy.ts cur2/tene-mashkaot/src/proxy.ts
+--- cur/tene-mashkaot/src/proxy.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/proxy.ts	2026-09-30 20:28:36.000000000 +0000
+@@ -4,18 +4,35 @@
+ 
+ const handleI18nRouting = createIntlMiddleware(routing);
+ 
++/** Sentry CSP report endpoint derived from the public DSN (https://<key>@<host>/<project>). */
++function sentryReportUri(): string | null {
++  const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
++  if (!dsn) return null;
++  try {
++    const url = new URL(dsn);
++    const project = url.pathname.replace(/\//g, '');
++    return `https://${url.host}/api/${project}/security/?sentry_key=${url.username}`;
++  } catch {
++    return null;
++  }
++}
++
++const GA = 'https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com';
++const META = 'https://connect.facebook.net https://www.facebook.com';
++
+ function buildCsp(nonce: string): string {
+   const isDev = process.env.NODE_ENV !== 'production';
+   const directives = [
+     "default-src 'self'",
+     // 'wasm-unsafe-eval' is required by the Meshopt decoder used for the 3D model.
+-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''}`,
++    // Host sources are the CSP2 fallback; CSP3 browsers rely on the nonce + 'strict-dynamic'.
++    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net${isDev ? " 'unsafe-eval'" : ''}`,
+     // React renders style attributes (motion, layout); inline <style> injection is not user-controlled.
+     "style-src 'self' 'unsafe-inline'",
+-    "img-src 'self' data: blob: https://cdn.sanity.io",
++    `img-src 'self' data: blob: https://cdn.sanity.io ${GA} https://www.facebook.com`,
+     "font-src 'self'",
+     // blob:/data: let GLTFLoader decode the model's embedded textures.
+-    "connect-src 'self' blob: data: https://challenges.cloudflare.com",
++    `connect-src 'self' blob: data: https://challenges.cloudflare.com ${GA} ${META}`,
+     'frame-src https://challenges.cloudflare.com https://www.google.com',
+     "worker-src 'self' blob:",
+     "media-src 'self' https://cdn.sanity.io",
+@@ -26,6 +43,8 @@
+     "frame-ancestors 'none'",
+   ];
+   if (!isDev) directives.push('upgrade-insecure-requests');
++  const reportUri = sentryReportUri();
++  if (reportUri) directives.push(`report-uri ${reportUri}`);
+   return directives.join('; ');
+ }
+ 
+@@ -47,7 +66,7 @@
+ export const config = {
+   matcher: [
+     {
+-      source: '/((?!api|studio|_next/static|_next/image|_vercel|models|images|favicon.ico|icon.svg|apple-icon.png|robots.txt|sitemap.xml|manifest.webmanifest|og.png|.*\\..*).*)',
++      source: '/((?!api|studio|monitoring|_next/static|_next/image|_vercel|models|images|favicon.ico|icon.svg|apple-icon.png|robots.txt|sitemap.xml|manifest.webmanifest|og.png|.*\\..*).*)',
+       missing: [
+         { type: 'header', key: 'next-router-prefetch' },
+         { type: 'header', key: 'purpose', value: 'prefetch' },
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.woff' -x '*.png' -x CHANGES.md -x docs -x package-lock.json cur/tene-mashkaot/src/sanity/lib/image.ts cur2/tene-mashkaot/src/sanity/lib/image.ts
+--- cur/tene-mashkaot/src/sanity/lib/image.ts	2026-09-30 08:50:54.000000000 +0000
++++ cur2/tene-mashkaot/src/sanity/lib/image.ts	2026-09-30 20:31:08.000000000 +0000
+@@ -12,3 +12,9 @@
+ export function imageUrl(source: SanityImage | null | undefined, width: number): string | null {
+   return urlForImage(source)?.width(width).url() ?? null;
+ }
++
++/** JPEG at a fixed box, for generated share images (the renderer does not read WebP/AVIF). */
++export function jpegImageUrl(source: SanityImage | null | undefined, width: number, height: number): string | null {
++  if (!builder || !source?.asset?._ref) return null;
++  return builder.image(source).width(width).height(height).fit('max').format('jpg').quality(85).url();
++}

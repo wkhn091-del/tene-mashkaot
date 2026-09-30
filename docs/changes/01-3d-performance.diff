@@ -1,0 +1,901 @@
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/.gitattributes b/tene-mashkaot/.gitattributes
+--- a/tene-mashkaot/.gitattributes	1970-01-01 00:00:00.000000000 +0000
++++ b/tene-mashkaot/.gitattributes	2026-09-30 08:50:54.000000000 +0000
+@@ -0,0 +1,5 @@
++* text=auto eol=lf
++*.glb binary
++*.webp binary
++*.png binary
++*.woff2 binary
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/DEPLOYMENT.md b/tene-mashkaot/DEPLOYMENT.md
+--- a/tene-mashkaot/DEPLOYMENT.md	2026-09-29 23:31:48.000000000 +0000
++++ b/tene-mashkaot/DEPLOYMENT.md	2026-09-30 09:22:56.000000000 +0000
+@@ -222,3 +222,11 @@
+ | שינוי בסטודיו לא מופיע | בודקים ב־Sanity ← Webhooks ← Attempts שהתשובה 200. תשובה 401 אומרת שהסוד לא תואם |
+ 
+ כל שינוי משתני סביבה ב־Vercel דורש **Redeploy**.
++
++## עדכון המודלים התלת־ממדיים והתמונות
++
++- **גופנים:** Heebo ו־Suez One נמצאים בתוך הפרויקט (`src/app/fonts/`). הבנייה לא תלויה ב־Google Fonts ולא תיכשל אם אין אליו גישה.
++- **תווית הבקבוק:** העיצוב נמצא ב־`scripts/label/label.html` והתמונה המוכנה ב־`scripts/label/label.webp`. אחרי שינוי מריצים `npm run label`.
++- **מודלים חדשים:** מריצים `node scripts/build-pour-model.mjs <בקבוק> <כוס>`, אחר כך `npm run optimize:hero` ואז `npm run label`.
++- **ריענון מטמון:** אחרי כל שינוי במודל מעלים את מספר הגרסה (`?v=`) ב־`MODEL_URL` שבקובץ `src/lib/defaults.ts`, או ב־`ROOM_URL` / `ROSE_URL` שבקובץ `HeroCanvas.tsx`. כך דפדפנים לא יציגו עותק ישן.
++- **תמונות החנות:** מפותחות מהצילומים המקוריים עם `scripts/enhance-photos.py`: איזון בהירות, תיקון צבע עדין, חדות.
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/README.md b/tene-mashkaot/README.md
+--- a/tene-mashkaot/README.md	2026-09-29 23:32:02.000000000 +0000
++++ b/tene-mashkaot/README.md	2026-09-30 09:22:56.000000000 +0000
+@@ -48,3 +48,24 @@
+ - **Order resilience:** an order is saved to Sanity *and* e-mailed. If either fails the other still delivers it, and the customer always gets a one-tap WhatsApp copy of the order.
+ - **Accessibility:** WCAG 2.1 AA / IS 5568 – skip link, focus management, reduced-motion support (the 3D scene is replaced by a static poster), and an accessibility menu (text size, contrast, underlined links, readable font, stop animations).
+ - **Legal compliance:** age gate (18+), alcohol warning on every page, no ordering during Shabbat or Yom Tov, and delivery slots only within store hours and never after 23:00 (alcohol sales are prohibited 23:00–06:00).
++
++## 3D hero: asset pipeline and performance
++
++The pour scene (`src/components/hero/HeroCanvas.tsx`) is built to stay smooth on mid-range phones:
++
++- **On-demand rendering** – frames are drawn only while something moves (scroll, the damped camera glide, the pour itself). An idle page costs the GPU nothing, and nothing renders while the section is off screen.
++- **Warm-up before reveal** – every shader is compiled (`compileAsync`) and every texture uploaded, one per frame, while the SVG poster is still showing, so the reveal and the first scroll never hitch.
++- **Quality tiers** – desktop-class machines get refractive glass (transmission pass at half resolution); phones, tablets and smaller laptops get a reflective glass without the extra pass. DPR is capped (1.6 / 1.35), and a one-way guard drops to the light tier once if real frames average below ~38 fps (no oscillation).
++- **Budget** – ~160K triangles and ~2.2MB of models in total (from ~494K / 6.9MB), four lights, a one-time environment map.
++
++Rebuilding the models from the Sketchfab sources:
++
++```bash
++node scripts/build-pour-model.mjs <bottle_of_red_wine.glb> <wine_glass.glb>   # bottle + glass + wine volume
++npm run optimize:hero   # error-bounded simplification of the room, side table and bottle
++npm run label           # applies scripts/label/label.webp (source: scripts/label/label.html) to the bottle
++```
++
++After changing a model, bump the `?v=` query in `MODEL_URL` (`src/lib/defaults.ts`) or `ROOM_URL` / `ROSE_URL` (`HeroCanvas.tsx`) so browsers don't keep a cached copy.
++
++Store photos are developed from the original captures with `python3 scripts/enhance-photos.py <mapping.json> <originals-dir> public/images/store` (luminance levels, gentle white balance, clarity, sharpening). Fonts (Heebo, Suez One) are self-hosted in `src/app/fonts/`, so builds never depend on Google Fonts.
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/package.json b/tene-mashkaot/package.json
+--- a/tene-mashkaot/package.json	2026-09-29 23:10:14.000000000 +0000
++++ b/tene-mashkaot/package.json	2026-09-30 09:22:56.000000000 +0000
+@@ -9,7 +9,9 @@
+     "start": "next start",
+     "lint": "eslint",
+     "typecheck": "tsc --noEmit",
+-    "seed": "tsx scripts/seed.mts"
++    "seed": "tsx scripts/seed.mts",
++    "optimize:hero": "node scripts/optimize-hero-assets.mjs",
++    "label": "node scripts/apply-label.mjs scripts/label/label.webp"
+   },
+   "dependencies": {
+     "@hebcal/core": "^6.11.0",
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/scripts/apply-label.mjs b/tene-mashkaot/scripts/apply-label.mjs
+--- a/tene-mashkaot/scripts/apply-label.mjs	1970-01-01 00:00:00.000000000 +0000
++++ b/tene-mashkaot/scripts/apply-label.mjs	2026-09-30 09:22:56.000000000 +0000
+@@ -0,0 +1,52 @@
++/**
++ * Replaces the artwork on the hero bottle's label.
++ *
++ * Input: upright label art at the label's true proportions, about 2.1:1 (the label wraps 245° around
++ * the bottle; keep the main design in the middle ~40%). scripts/label/label.html is the source of the
++ * current art — screenshot it at 2138×1024 to regenerate scripts/label/label.webp.
++ * The model's UVs expect a square texture flipped vertically, so the art is squashed and flipped here.
++ *
++ * Usage: node scripts/apply-label.mjs scripts/label/label.webp [public/models/pour-bottle-glass.glb]
++ */
++import { NodeIO } from '@gltf-transform/core';
++import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
++import { prune } from '@gltf-transform/functions';
++import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
++import sharp from 'sharp';
++import path from 'node:path';
++
++const [art, modelArg] = process.argv.slice(2);
++if (!art) {
++  console.error('Usage: node scripts/apply-label.mjs <label.png> [model.glb]');
++  process.exit(1);
++}
++const model = path.resolve(modelArg ?? 'public/models/pour-bottle-glass.glb');
++
++await Promise.all([MeshoptDecoder.ready, MeshoptEncoder.ready]);
++const io = new NodeIO()
++  .registerExtensions(ALL_EXTENSIONS)
++  .registerDependencies({ 'meshopt.decoder': MeshoptDecoder, 'meshopt.encoder': MeshoptEncoder });
++const doc = await io.read(model);
++const label = doc.getRoot().listMeshes().find((mesh) => mesh.getName() === 'label');
++const material = label?.listPrimitives()[0]?.getMaterial();
++const texture = material?.getBaseColorTexture();
++if (!material || !texture) throw new Error('The model has no textured "label" mesh');
++// Relief/roughness maps baked from the previous artwork would ghost through the new design.
++for (const [slot, get, set] of [
++  ['normal', () => material.getNormalTexture(), () => material.setNormalTexture(null)],
++  ['occlusion', () => material.getOcclusionTexture(), () => material.setOcclusionTexture(null)],
++  ['metallicRoughness', () => material.getMetallicRoughnessTexture(), () => material.setMetallicRoughnessTexture(null)],
++  ['emissive', () => material.getEmissiveTexture(), () => material.setEmissiveTexture(null)],
++]) {
++  if (get()) {
++    set();
++    console.log(`removed old ${slot} map from the label`);
++  }
++}
++material.setRoughnessFactor(0.62).setMetallicFactor(0);
++
++const image = await sharp(art).resize(1024, 1024, { fit: 'fill', kernel: 'lanczos3' }).flip().webp({ quality: 90 }).toBuffer();
++texture.setImage(new Uint8Array(image)).setMimeType('image/webp');
++await doc.transform(prune());
++await io.write(model, doc);
++console.log(`Label applied to ${path.basename(model)} (${Math.round(image.byteLength / 1024)}KB texture)`);
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/scripts/enhance-photos.py b/tene-mashkaot/scripts/enhance-photos.py
+--- a/tene-mashkaot/scripts/enhance-photos.py	1970-01-01 00:00:00.000000000 +0000
++++ b/tene-mashkaot/scripts/enhance-photos.py	2026-09-30 09:09:16.000000000 +0000
+@@ -0,0 +1,54 @@
++"""
++Re-develops the store photos from the original phone captures:
++luminance-only levels, a gentle white-balance correction (the warm store mood is kept),
++local contrast ("clarity"), fine sharpening and a light saturation lift, then WebP.
++
++Usage: python3 scripts/enhance-photos.py <mapping.json> <uploads_dir> <out_dir>
++mapping.json: {"store-x.webp": {"src": "123_image.png"}, ...}
++"""
++import json
++import sys
++from pathlib import Path
++
++import numpy as np
++from PIL import Image, ImageEnhance, ImageFilter
++
++
++def develop(img: Image.Image) -> Image.Image:
++    rgb = np.asarray(img.convert('RGB'), dtype=np.float32) / 255.0
++    lum = rgb @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
++    # Levels on luminance only (per-channel stretching would shift colours).
++    lo, hi = np.percentile(lum, [0.4, 99.6])
++    scale = 1.0 / max(hi - lo, 1e-3)
++    rgb = np.clip((rgb - lo) * scale, 0.0, 1.0)
++    # Gentle grey-world correction on mid-tones, 25% of the way, so the store's warmth survives.
++    mid = (lum > 0.2) & (lum < 0.8)
++    if mid.sum() > 1000:
++        means = rgb[mid].mean(axis=0)
++        gains = means.mean() / np.maximum(means, 1e-3)
++        rgb = np.clip(rgb * (1.0 + 0.25 * (gains - 1.0)), 0.0, 1.0)
++    # Slight shadow lift / highlight roll-off (soft S in reverse at the ends).
++    rgb = np.clip(rgb + 0.06 * rgb * (1.0 - rgb) * (1.0 - 2.0 * rgb) * -1.0, 0.0, 1.0)
++    out = Image.fromarray((rgb * 255.0 + 0.5).astype(np.uint8))
++    out = out.filter(ImageFilter.UnsharpMask(radius=24, percent=14, threshold=0))  # clarity
++    out = out.filter(ImageFilter.UnsharpMask(radius=1.1, percent=65, threshold=2))  # detail
++    out = ImageEnhance.Color(out).enhance(1.07)
++    return out
++
++
++def main() -> None:
++    mapping = json.loads(Path(sys.argv[1]).read_text())
++    uploads, out_dir = Path(sys.argv[2]), Path(sys.argv[3])
++    for name, entry in mapping.items():
++        if entry.get('err', 0) > 50:
++            print(f'skip {name}: no matching original')
++            continue
++        src = Image.open(uploads / entry['src'])
++        developed = develop(src)
++        target = out_dir / name
++        developed.save(target, 'WEBP', quality=84, method=6)
++        print(f'{name}: {target.stat().st_size // 1024}KB')
++
++
++if __name__ == '__main__':
++    main()
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/scripts/label/label.html b/tene-mashkaot/scripts/label/label.html
+--- a/tene-mashkaot/scripts/label/label.html	1970-01-01 00:00:00.000000000 +0000
++++ b/tene-mashkaot/scripts/label/label.html	2026-09-30 09:17:33.000000000 +0000
+@@ -0,0 +1,34 @@
++<!doctype html>
++<html lang="he" dir="rtl"><head><meta charset="utf-8"><style>
++@font-face{font-family:Suez;src:url(../../src/app/fonts/suez-one-hebrew-400-normal.woff2) format('woff2')}
++@font-face{font-family:Heebo;src:url(../../src/app/fonts/heebo-hebrew-wght-normal.woff2) format('woff2');font-weight:100 900}
++html,body{margin:0;background:#000}
++.label{position:relative;width:2138px;height:1024px;overflow:hidden;color:#5a1a22;
++  background:radial-gradient(60% 95% at 50% 45%,#fbf4e4 0%,#f2e4c8 55%,#e2cda4 100%)}
++.label::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(120,90,50,.03) 0 2px,transparent 2px 6px),repeating-linear-gradient(0deg,rgba(120,90,50,.025) 0 1px,transparent 1px 4px)}
++.rule{position:absolute;left:0;right:0;height:5px;background:#b58d4f}
++.rule.thin{height:2px}
++.band{position:absolute;left:0;right:0;top:846px;height:78px;background:linear-gradient(180deg,#6b1f2a,#4a1019);display:flex;align-items:center;justify-content:center}
++.band p{margin:0;font-family:Heebo;font-weight:600;font-size:40px;letter-spacing:.32em;color:#e9cf95}
++.panel{position:absolute;top:92px;left:50%;width:860px;height:720px;transform:translateX(-50%);border:4px solid #b58d4f;border-radius:36px;display:flex;flex-direction:column;align-items:center;justify-content:center}
++.panel::after{content:'';position:absolute;inset:12px;border:2px solid rgba(181,141,79,.7);border-radius:26px}
++.star{width:96px;height:96px;background:linear-gradient(160deg,#ecd49c,#a87c3a);clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)}
++.name{font-family:Suez;font-size:210px;line-height:.9;margin-top:18px}
++.sub{font-family:Suez;font-size:124px;line-height:1;margin-top:4px}
++.divider{display:flex;align-items:center;gap:18px;width:70%;margin:30px 0 22px}
++.divider span{flex:1;height:3px;background:#b58d4f}
++.divider i{width:18px;height:18px;background:#b58d4f;transform:rotate(45deg)}
++.kind{font-family:Heebo;font-weight:700;font-size:66px;letter-spacing:.1em;color:#7a2230}
++.wing{position:absolute;top:250px;width:560px;text-align:center}
++.wing .star{width:62px;height:62px;margin:0 auto 18px}
++.wing .w1{font-family:Suez;font-size:74px;line-height:1}
++.wing .w2{font-family:Heebo;font-weight:500;font-size:38px;letter-spacing:.2em;margin-top:22px;color:#8a6a3a}
++</style></head><body>
++<div class="label" id="label">
++  <div class="rule" style="top:30px"></div><div class="rule thin" style="top:46px"></div>
++  <div class="rule thin" style="bottom:46px"></div><div class="rule" style="bottom:30px"></div>
++  <div class="wing" style="left:110px"><div class="star"></div><div class="w1">תנא משקאות</div><div class="w2">אלעד</div></div>
++  <div class="wing" style="right:110px"><div class="star"></div><div class="w1">חוויה של לגימה</div><div class="w2">יין · מתנות · אירועים</div></div>
++  <div class="panel"><div class="star"></div><div class="name">תנא</div><div class="sub">משקאות</div><div class="divider"><span></span><i></i><span></span></div><div class="kind">יין אדום</div></div>
++  <div class="band"><p>חוויה של לגימה</p></div>
++</div></body></html>
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/scripts/optimize-hero-assets.mjs b/tene-mashkaot/scripts/optimize-hero-assets.mjs
+--- a/tene-mashkaot/scripts/optimize-hero-assets.mjs	1970-01-01 00:00:00.000000000 +0000
++++ b/tene-mashkaot/scripts/optimize-hero-assets.mjs	2026-09-30 09:18:50.000000000 +0000
+@@ -0,0 +1,63 @@
++/**
++ * Second-pass optimizer for the hero's 3D assets (run after build-pour-model.mjs).
++ * Simplifies dense meshes by an error budget relative to each mesh's size, so nothing visibly
++ * changes at hero viewing distances, while the per-frame triangle count drops by ~65%.
++ *
++ * Usage: node scripts/optimize-hero-assets.mjs [modelsDir=public/models]
++ */
++import { NodeIO } from '@gltf-transform/core';
++import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
++import { dedup, dequantize, meshopt, prune, simplifyPrimitive, weld } from '@gltf-transform/functions';
++import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
++import { stat } from 'node:fs/promises';
++import path from 'node:path';
++
++await Promise.all([MeshoptDecoder.ready, MeshoptEncoder.ready, MeshoptSimplifier.ready]);
++const io = new NodeIO()
++  .registerExtensions(ALL_EXTENSIONS)
++  .registerDependencies({ 'meshopt.decoder': MeshoptDecoder, 'meshopt.encoder': MeshoptEncoder });
++
++/** Rules are tried in order; the first whose minimum triangle count matches a primitive applies. */
++const JOBS = {
++  'wine-room.glb': [
++    { minTris: 40000, ratio: 0.2, error: 0.0012 },
++    { minTris: 6000, ratio: 0.5, error: 0.0008 },
++  ],
++  'rose-table.glb': [
++    { minTris: 60000, ratio: 0.14, error: 0.0015 },
++    { minTris: 20000, ratio: 0.25, error: 0.0012 },
++    { minTris: 4000, ratio: 0.55, error: 0.0008 },
++  ],
++  'pour-bottle-glass.glb': [
++    { name: 'label', ratio: 0.75, error: 0.0001 },
++    { name: 'bottle', ratio: 0.6, error: 0.00025 },
++  ],
++};
++
++const triangles = (prim) => {
++  const indices = prim.getIndices();
++  return (indices ? indices.getCount() : prim.getAttribute('POSITION').getCount()) / 3;
++};
++
++const dir = path.resolve(process.argv[2] ?? 'public/models');
++for (const [file, rules] of Object.entries(JOBS)) {
++  const input = path.join(dir, file);
++  const before = (await stat(input)).size;
++  const doc = await io.read(input);
++  await doc.transform(dequantize(), weld());
++  let trisBefore = 0;
++  let trisAfter = 0;
++  for (const mesh of doc.getRoot().listMeshes()) {
++    for (const prim of mesh.listPrimitives()) {
++      const count = triangles(prim);
++      trisBefore += count;
++      const rule = rules.find((r) => (r.name ? r.name === mesh.getName() : count >= r.minTris));
++      if (rule) simplifyPrimitive(prim, { simplifier: MeshoptSimplifier, ratio: rule.ratio, error: rule.error });
++      trisAfter += triangles(prim);
++    }
++  }
++  await doc.transform(dedup(), prune(), meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
++  await io.write(input, doc);
++  const after = (await stat(input)).size;
++  console.log(`${file}: ${Math.round(trisBefore)} → ${Math.round(trisAfter)} triangles, ${(before / 1e6).toFixed(2)}MB → ${(after / 1e6).toFixed(2)}MB`);
++}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/src/app/[locale]/layout.tsx b/tene-mashkaot/src/app/[locale]/layout.tsx
+--- a/tene-mashkaot/src/app/[locale]/layout.tsx	2026-09-29 23:25:08.000000000 +0000
++++ b/tene-mashkaot/src/app/[locale]/layout.tsx	2026-09-30 08:57:49.000000000 +0000
+@@ -1,5 +1,4 @@
+ import type { Metadata, Viewport } from 'next';
+-import { Heebo, Suez_One } from 'next/font/google';
+ import { cookies, headers } from 'next/headers';
+ import { notFound } from 'next/navigation';
+ import { hasLocale, NextIntlClientProvider } from 'next-intl';
+@@ -22,9 +21,8 @@
+ import { localize } from '@/lib/i18n-utils';
+ import { alternatesFor, ogLocale } from '@/lib/seo';
+ import '../globals.css';
++import { fontVariables } from '../fonts';
+ 
+-const suez = Suez_One({ weight: '400', subsets: ['hebrew', 'latin'], display: 'swap', variable: '--font-suez' });
+-const heebo = Heebo({ subsets: ['hebrew', 'latin'], display: 'swap', variable: '--font-heebo' });
+ 
+ export function generateStaticParams() {
+   return routing.locales.map((locale) => ({ locale }));
+@@ -79,7 +77,7 @@
+   const ageVerified = cookieStore.get(AGE_COOKIE)?.value === '1';
+ 
+   return (
+-    <html lang={locale} dir={getDirection(locale)} className={`${suez.variable} ${heebo.variable}`} suppressHydrationWarning>
++    <html lang={locale} dir={getDirection(locale)} className={fontVariables} suppressHydrationWarning>
+       <head>
+         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: A11Y_BOOT_SCRIPT }} />
+       </head>
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/src/app/fonts.ts b/tene-mashkaot/src/app/fonts.ts
+--- a/tene-mashkaot/src/app/fonts.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/tene-mashkaot/src/app/fonts.ts	2026-09-30 08:56:11.000000000 +0000
+@@ -0,0 +1,49 @@
++import localFont from 'next/font/local';
++
++/*
++ * Self-hosted Heebo (text) and Suez One (display), split into Hebrew and Latin subsets with
++ * unicode-range, so builds never depend on reaching Google Fonts and pages fetch only what they use.
++ * Sources: @fontsource-variable/heebo and @fontsource/suez-one (SIL Open Font License).
++ */
++export const heeboHebrew = localFont({
++  src: './fonts/heebo-hebrew-wght-normal.woff2',
++  weight: '100 900',
++  style: 'normal',
++  variable: '--font-heebo-he',
++  display: 'swap',
++  declarations: [{ prop: 'unicode-range', value: 'U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F' }],
++});
++
++export const heeboLatin = localFont({
++  src: './fonts/heebo-latin-wght-normal.woff2',
++  weight: '100 900',
++  style: 'normal',
++  variable: '--font-heebo-latin',
++  display: 'swap',
++  declarations: [
++    { prop: 'unicode-range', value: 'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD' },
++  ],
++});
++
++export const suezHebrew = localFont({
++  src: './fonts/suez-one-hebrew-400-normal.woff2',
++  weight: '400',
++  style: 'normal',
++  variable: '--font-suez-he',
++  display: 'swap',
++  declarations: [{ prop: 'unicode-range', value: 'U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F' }],
++});
++
++export const suezLatin = localFont({
++  src: './fonts/suez-one-latin-400-normal.woff2',
++  weight: '400',
++  style: 'normal',
++  variable: '--font-suez-latin',
++  display: 'swap',
++  preload: false,
++  declarations: [
++    { prop: 'unicode-range', value: 'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD' },
++  ],
++});
++
++export const fontVariables = [heeboHebrew.variable, heeboLatin.variable, suezHebrew.variable, suezLatin.variable].join(' ');
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/src/app/globals.css b/tene-mashkaot/src/app/globals.css
+--- a/tene-mashkaot/src/app/globals.css	2026-09-30 00:56:04.000000000 +0000
++++ b/tene-mashkaot/src/app/globals.css	2026-09-30 08:56:11.000000000 +0000
+@@ -28,8 +28,8 @@
+   --color-parchment: #efe5d3;
+   --color-ink: #0e0a0a;
+ 
+-  --font-display: var(--font-suez), 'Suez One', ui-serif, Georgia, serif;
+-  --font-sans: var(--font-heebo), 'Heebo', ui-sans-serif, system-ui, sans-serif;
++  --font-display: var(--font-suez-he), var(--font-suez-latin), 'Suez One', ui-serif, Georgia, serif;
++  --font-sans: var(--font-heebo-he), var(--font-heebo-latin), 'Heebo', ui-sans-serif, system-ui, sans-serif;
+ 
+   --radius-card: 1.25rem;
+ 
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/src/components/hero/Hero.tsx b/tene-mashkaot/src/components/hero/Hero.tsx
+--- a/tene-mashkaot/src/components/hero/Hero.tsx	2026-09-30 02:09:52.000000000 +0000
++++ b/tene-mashkaot/src/components/hero/Hero.tsx	2026-09-30 08:51:58.000000000 +0000
+@@ -20,7 +20,7 @@
+         src={hero.src}
+         alt=""
+         fill
+-        priority
++        preload
+         sizes="100vw"
+         className="-z-20 object-cover object-[50%_45%] lg:scale-110 lg:blur-[6px]"
+       />
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/src/components/hero/HeroCanvas.tsx b/tene-mashkaot/src/components/hero/HeroCanvas.tsx
+--- a/tene-mashkaot/src/components/hero/HeroCanvas.tsx	2026-09-30 01:44:36.000000000 +0000
++++ b/tene-mashkaot/src/components/hero/HeroCanvas.tsx	2026-09-30 08:59:00.000000000 +0000
+@@ -1,10 +1,11 @@
+ 'use client';
+ 
+-import { Environment, Lightformer, PerformanceMonitor, useGLTF, useProgress, useTexture } from '@react-three/drei';
++import { Environment, Lightformer, useGLTF, useProgress, useTexture } from '@react-three/drei';
+ import { Canvas, useFrame, useThree } from '@react-three/fiber';
+ import type { MotionValue } from 'motion/react';
+-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
++import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+ import {
++  BackSide,
+   Box3,
+   BufferGeometry,
+   CanvasTexture,
+@@ -23,6 +24,7 @@
+   PlaneGeometry,
+   RingGeometry,
+   SRGBColorSpace,
++  Texture,
+   Vector3,
+   type PerspectiveCamera,
+ } from 'three';
+@@ -34,8 +36,8 @@
+ const POUR_ANGLE = MathUtils.degToRad(112);
+ const WINE_COLOR = '#6d0f22';
+ const BACKDROP_URL = '/images/store/bar-backdrop.webp';
+-const ROOM_URL = '/models/wine-room.glb';
+-const ROSE_URL = '/models/rose-table.glb';
++const ROOM_URL = '/models/wine-room.glb?v=2';
++const ROSE_URL = '/models/rose-table.glb?v=2';
+ 
+ /**
+  * The wine room is modelled in its own units (its wine bottle is ~87 tall); this matches it to our
+@@ -55,8 +57,13 @@
+ const CLOSE_FOV = 30;
+ const WIDE_FOV = 42;
+ 
++/** high: refractive glass; medium: reflective glass without the extra transmission pass. */
++export type SceneQuality = 'high' | 'medium';
++
+ interface SceneRig {
+   root: Group;
++  glass: Mesh;
++  glassMaterials: Record<SceneQuality, MeshPhysicalMaterial>;
+   pour: Group;
+   opener: Group;
+   capMaterial: MeshPhysicalMaterial;
+@@ -199,20 +206,39 @@
+     const label = findMesh(model, 'label');
+     if (!glass || !wine || !bottle) throw new Error('Hero model is missing required meshes');
+ 
+-    // Physically based glass: refracts the wine and the bar behind it instead of just fading it.
+-    glass.material = new MeshPhysicalMaterial({
+-      color: '#ffffff',
+-      metalness: 0,
+-      roughness: 0.02,
+-      transmission: 1,
+-      thickness: 0.12,
+-      ior: 1.5,
+-      clearcoat: 1,
+-      clearcoatRoughness: 0.02,
+-      envMapIntensity: 1.8,
+-      specularIntensity: 1,
+-      side: DoubleSide,
+-    });
++    // High tier: physically based glass that refracts the wine and the bar behind it (the transmission pass
++    // renders at half resolution, see onCreated). Medium tier: a reflective clear coat with no extra pass.
++    const glassMaterials: Record<SceneQuality, MeshPhysicalMaterial> = {
++      high: new MeshPhysicalMaterial({
++        color: '#ffffff',
++        metalness: 0,
++        roughness: 0.02,
++        transmission: 1,
++        thickness: 0.12,
++        ior: 1.5,
++        clearcoat: 1,
++        clearcoatRoughness: 0.02,
++        envMapIntensity: 1.8,
++        specularIntensity: 1,
++        side: DoubleSide,
++      }),
++      medium: new MeshPhysicalMaterial({
++        color: '#ffffff',
++        metalness: 0,
++        roughness: 0.03,
++        transparent: true,
++        opacity: 0.18,
++        depthWrite: false,
++        clearcoat: 1,
++        clearcoatRoughness: 0.03,
++        envMapIntensity: 2.6,
++        specularIntensity: 1,
++        ior: 1.5,
++        side: DoubleSide,
++      }),
++    };
++    glass.material = glassMaterials.high;
++    glass.renderOrder = 2;
+ 
+     const plane = new Plane(new Vector3(0, -1, 0), 0);
+     const wineMaterial = new MeshPhysicalMaterial({
+@@ -334,16 +360,30 @@
+     bottleShadow.scale.setScalar((bottleBox.max.x - bottleBox.min.x) * 1.8);
+     root.add(bottleShadow);
+ 
+-    return { root, pour, opener, capMaterial, corkMaterial, wineMaterial, plane, disc, stream, ripple, bottleShadow, wineBox, radiusAt, mouthLocal, pivotRest, pivotPour, wineCenter, floorY };
++    return { root, glass, glassMaterials, pour, opener, capMaterial, corkMaterial, wineMaterial, plane, disc, stream, ripple, bottleShadow, wineBox, radiusAt, mouthLocal, pivotRest, pivotPour, wineCenter, floorY };
+   }, [scene]);
+ }
+ 
+-function Scene({ progress, onReady }: { progress: MotionValue<number>; onReady: () => void }) {
++function Scene({
++  progress,
++  quality,
++  active,
++  onReady,
++}: {
++  progress: MotionValue<number>;
++  quality: SceneQuality;
++  active: boolean;
++  onReady: () => void;
++}) {
+   const rig = useSceneRig();
++  const invalidate = useThree((s) => s.invalidate);
++  const gl = useThree((s) => s.gl);
++  const scene = useThree((s) => s.scene);
++  const camera = useThree((s) => s.camera);
++  const snapped = useRef(false);
+   const rigRef = useRef<typeof rig | null>(null);
+   const size = useThree((s) => s.size);
+   const pointer = useRef({ x: 0, y: 0 });
+-  const readySent = useRef(false);
+   const smoothed = useRef({ scroll: progress.get(), tilt: 0 });
+   const tmp = useMemo(
+     () => ({ mouth: new Vector3(), axis: new Vector3(), land: new Vector3(), target: new Vector3(), look: new Vector3(), aim: new Vector3() }),
+@@ -359,14 +399,71 @@
+   }, [rig]);
+ 
+   useEffect(() => {
++    rig.glass.material = rig.glassMaterials[quality];
++    invalidate();
++  }, [rig, quality, invalidate]);
++
++  // Frames are drawn on demand: scrolling (and the damped motion it sets off) schedules them, and an idle
++  // page costs the GPU nothing.
++  useEffect(() => {
++    if (!active) return;
++    invalidate();
++    return progress.on('change', () => invalidate());
++  }, [progress, active, invalidate]);
++
++  // Compile every shader and upload every texture while the poster is still showing, so neither the reveal
++  // nor the first scroll hitches on GPU work.
++  useEffect(() => {
++    let cancelled = false;
++    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
++    (async () => {
++      const hidden: Object3D[] = [];
++      scene.traverse((object) => {
++        if (!object.visible) {
++          hidden.push(object);
++          object.visible = true;
++        }
++      });
++      try {
++        await gl.compileAsync(scene, camera);
++      } catch {
++        // Without parallel shader compilation, programs are built on the first render instead.
++      }
++      for (const object of hidden) object.visible = false;
++      const textures = new Set<Texture>();
++      scene.traverse((object) => {
++        const material = (object as Mesh).material;
++        if (!material) return;
++        for (const m of Array.isArray(material) ? material : [material]) {
++          for (const value of Object.values(m)) if (value instanceof Texture) textures.add(value);
++        }
++      });
++      for (const texture of textures) {
++        if (cancelled) return;
++        gl.initTexture(texture);
++        await nextFrame();
++      }
++      for (let i = 0; i < 2; i += 1) {
++        invalidate();
++        await nextFrame();
++      }
++      if (!cancelled) onReady();
++    })();
++    return () => {
++      cancelled = true;
++    };
++  }, [gl, scene, camera, invalidate, onReady]);
++
++  useEffect(() => {
+     const onMove = (e: PointerEvent) => {
+       if (e.pointerType !== 'mouse') return;
+       pointer.current.x = (e.clientX / window.innerWidth) * 2 - 1;
+       pointer.current.y = (e.clientY / window.innerHeight) * 2 - 1;
++      invalidate();
+     };
+     window.addEventListener('pointermove', onMove, { passive: true });
+     return () => window.removeEventListener('pointermove', onMove);
+-  }, []);
++  }, [invalidate]);
+ 
+   // Which screen side the overlay copy occupies (0 when it sits above the scene).
+   const textSide = useRef(0);
+@@ -385,11 +482,14 @@
+     const rig = rigRef.current;
+     if (!rig) return;
+     const now = state.clock.elapsedTime;
++    // Frames arrive on demand, so the first one after an idle spell can carry a long delta.
++    const dt = Math.min(delta, 0.1);
+ 
+     const s = smoothed.current;
+-    s.scroll = MathUtils.damp(s.scroll, progress.get(), 6, delta);
++    const target = progress.get();
++    s.scroll = MathUtils.damp(s.scroll, target, 6, dt);
+     const { fill, tilt, pouring, intro } = pourState(s.scroll);
+-    s.tilt = MathUtils.damp(s.tilt, tilt, 10, delta);
++    s.tilt = MathUtils.damp(s.tilt, tilt, 10, dt);
+     const k = s.tilt;
+ 
+     // Bottle: stands on the bar until scrolled, then lifts and tilts toward the glass.
+@@ -448,7 +548,7 @@
+     tmp.target.set(tmp.look.x + pointer.current.x * 0.35, tmp.look.y - pointer.current.y * 0.2 + 0.25, distance);
+     tmp.look.lerpVectors(wide.look, tmp.look, intro);
+     tmp.target.lerpVectors(wide.position, tmp.target, intro);
+-    const ease = readySent.current ? 1 - Math.exp(-4 * delta) : 1;
++    const ease = snapped.current ? 1 - Math.exp(-4 * dt) : 1;
+     const cam = state.camera as PerspectiveCamera;
+     cam.position.lerp(tmp.target, ease);
+     tmp.aim.lerp(tmp.look, ease);
+@@ -459,10 +559,16 @@
+       cam.updateProjectionMatrix();
+     }
+ 
+-    if (!readySent.current) {
+-      readySent.current = true;
+-      onReady();
+-    }
++    snapped.current = true;
++
++    // Keep drawing only while something still moves: the damped scroll, the camera glide or the pour itself.
++    const settling =
++      Math.abs(s.scroll - target) > 1e-4 ||
++      Math.abs(s.tilt - tilt) > 1e-4 ||
++      cam.position.distanceToSquared(tmp.target) > 1e-6 ||
++      tmp.aim.distanceToSquared(tmp.look) > 1e-6 ||
++      rig.stream.visible;
++    if (settling && active) state.invalidate();
+   });
+ 
+   return (
+@@ -537,19 +643,32 @@
+   );
+ }
+ 
++/** Four lights instead of six (fewer per-pixel light loops); reflections come from a one-time environment. */
+ function Lights() {
++  const backdrop = useTexture(BACKDROP_URL);
++  const wrap = useMemo(() => {
++    const texture = backdrop.clone();
++    texture.repeat.set(1, 1);
++    texture.offset.set(0, 0);
++    texture.colorSpace = SRGBColorSpace;
++    texture.needsUpdate = true;
++    return texture;
++  }, [backdrop]);
+   return (
+     <>
+       <color attach="background" args={['#0d0507']} />
+       <fog attach="fog" args={['#0d0507', 38, 95]} />
+-      <ambientLight intensity={0.18} color="#ffe6cc" />
+-      <hemisphereLight args={['#ffdcb0', '#2a130b', 0.35]} />
+-      <directionalLight position={[3, 6, 5]} intensity={1.2} color="#fff4e0" />
+-      <directionalLight position={[-4, 3, -3]} intensity={0.5} color="#d4a95a" />
++      <hemisphereLight args={['#ffdcb0', '#2a130b', 0.55]} />
++      <directionalLight position={[3, 6, 5]} intensity={1.35} color="#fff4e0" />
+       {/* Warm pendant over the bar */}
+       <spotLight position={[0.5, 9, 3]} angle={0.55} penumbra={0.9} intensity={1.5} decay={0} color="#ffdcb0" />
+       <pointLight position={[-9, 6, -10]} intensity={1.2} decay={0} distance={30} color="#ff9f5a" />
++      {/* Studio softboxes over a dim wrap of the real store: warm shelves show in the bottle and glass. */}
+       <Environment resolution={256} frames={1}>
++        <mesh scale={60}>
++          <sphereGeometry args={[1, 32, 16]} />
++          <meshBasicMaterial map={wrap} color="#7a6353" side={BackSide} toneMapped={false} />
++        </mesh>
+         <Lightformer form="rect" intensity={2.2} position={[0, 5, 3]} scale={[8, 2, 1]} rotation-x={Math.PI / 2.4} />
+         <Lightformer form="rect" intensity={3} color="#ffe2b0" position={[-4, 2, 1]} scale={[1.2, 6, 1]} rotation-y={Math.PI / 2} />
+         <Lightformer form="rect" intensity={2.4} position={[4, 2, 1]} scale={[1, 6, 1]} rotation-y={-Math.PI / 2} />
+@@ -565,31 +684,61 @@
+   return null;
+ }
+ 
++/**
++ * One-way quality guard: if real frames (not idle gaps between on-demand frames) average slower than
++ * ~38 fps, drop to the medium tier at DPR 1 once, instead of oscillating like an adaptive DPR would.
++ */
++function FrameBudget({ active, onSlow }: { active: boolean; onSlow: () => void }) {
++  const samples = useRef<number[]>([]);
++  const done = useRef(false);
++  useFrame((_, delta) => {
++    if (done.current || !active || delta > 0.25) return;
++    const list = samples.current;
++    list.push(delta);
++    if (list.length < 45) return;
++    const average = list.reduce((sum, value) => sum + value, 0) / list.length;
++    list.length = 0;
++    if (average > 1 / 38) {
++      done.current = true;
++      onSlow();
++    }
++  });
++  return null;
++}
++
+ export default function HeroCanvas({
+   progress,
+   active,
++  quality,
+   onReady,
+   onProgress,
+   onError,
+ }: {
+   progress: MotionValue<number>;
+   active: boolean;
++  quality: SceneQuality;
+   onReady: () => void;
+   onProgress: (value: number) => void;
+   onError: (error: unknown) => void;
+ }) {
+-  const [dpr, setDpr] = useState<number | [number, number]>([1, 1.75]);
++  const [tier, setTier] = useState<SceneQuality>(quality);
++  const [dpr, setDpr] = useState<number | [number, number]>(quality === 'high' ? [1, 1.6] : [1, 1.35]);
++  const onSlow = useCallback(() => {
++    setTier('medium');
++    setDpr(1);
++  }, []);
+ 
+   return (
+     <>
+       <ProgressReporter onProgress={onProgress} />
+       <Canvas
+         dpr={dpr}
+-        frameloop={active ? 'always' : 'never'}
++        frameloop={active ? 'demand' : 'never'}
+         camera={{ position: [0, 2.2, 9], fov: WIDE_FOV, near: 0.1, far: 140 }}
+-        gl={{ antialias: true, powerPreference: 'high-performance' }}
++        gl={{ antialias: true, alpha: false, stencil: false, powerPreference: 'high-performance' }}
+         onCreated={({ gl }) => {
+           gl.localClippingEnabled = true;
++          gl.transmissionResolutionScale = 0.5;
+           gl.domElement.addEventListener('webglcontextlost', (event) => {
+             event.preventDefault();
+             onError(new Error('WebGL context lost'));
+@@ -597,10 +746,10 @@
+         }}
+         aria-hidden
+       >
+-        <PerformanceMonitor onDecline={() => setDpr(1)} onIncline={() => setDpr([1, 1.75])} flipflops={3} onFallback={() => setDpr(1)} />
+-        <Lights />
++        <FrameBudget active={active} onSlow={onSlow} />
+         <Suspense fallback={null}>
+-          <Scene progress={progress} onReady={onReady} />
++          <Lights />
++          <Scene progress={progress} quality={tier} active={active} onReady={onReady} />
+         </Suspense>
+       </Canvas>
+     </>
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/src/components/hero/HeroPoster.tsx b/tene-mashkaot/src/components/hero/HeroPoster.tsx
+--- a/tene-mashkaot/src/components/hero/HeroPoster.tsx	2026-09-30 00:41:42.000000000 +0000
++++ b/tene-mashkaot/src/components/hero/HeroPoster.tsx	2026-09-30 08:57:49.000000000 +0000
+@@ -61,10 +61,10 @@
+         <rect x="74" y="250" width="108" height="150" rx="6" fill="#f3e6cc" />
+         <rect x="80" y="256" width="96" height="138" rx="4" fill="none" stroke="#b98c3e" strokeWidth="1.5" />
+         <path d="M128 276 l4.6 9.7 10.4 1.3-7.7 7.2 2 10.4-9.3-5-9.3 5 2-10.4-7.7-7.2 10.4-1.3z" fill="#5a1a22" />
+-        <text x="128" y="336" textAnchor="middle" fontSize="22" fontFamily="var(--font-suez), serif" fill="#5a1a22">
++        <text x="128" y="336" textAnchor="middle" fontSize="22" fontFamily="var(--font-suez-he), var(--font-suez-latin), serif" fill="#5a1a22">
+           תנא
+         </text>
+-        <text x="128" y="360" textAnchor="middle" fontSize="13" fontFamily="var(--font-suez), serif" fill="#5a1a22">
++        <text x="128" y="360" textAnchor="middle" fontSize="13" fontFamily="var(--font-suez-he), var(--font-suez-latin), serif" fill="#5a1a22">
+           משקאות
+         </text>
+         <path d="M100 470 V210" stroke="#fff" strokeOpacity="0.12" strokeWidth="6" strokeLinecap="round" />
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/src/components/hero/HeroVisual.tsx b/tene-mashkaot/src/components/hero/HeroVisual.tsx
+--- a/tene-mashkaot/src/components/hero/HeroVisual.tsx	2026-09-30 00:45:18.000000000 +0000
++++ b/tene-mashkaot/src/components/hero/HeroVisual.tsx	2026-09-30 08:50:54.000000000 +0000
+@@ -6,6 +6,7 @@
+ import { Component, useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+ import { useA11y } from '../a11y/A11yProvider';
+ import { StarIcon } from '../ui/icons';
++import type { SceneQuality } from './HeroCanvas';
+ import { HeroPoster } from './HeroPoster';
+ 
+ const HeroCanvas = dynamic(() => import('./HeroCanvas'), { ssr: false, loading: () => null });
+@@ -46,6 +47,15 @@
+   }
+ }
+ 
++/** Desktop-class machines get refractive glass; phones, tablets and smaller laptops get the lighter material. */
++function detectQuality(): SceneQuality {
++  const nav = navigator as NavigatorHints;
++  const coarse = window.matchMedia('(pointer: coarse)').matches;
++  const cores = nav.hardwareConcurrency ?? 4;
++  const memory = nav.deviceMemory ?? 8;
++  return !coarse && cores >= 8 && memory >= 8 && window.innerWidth >= 1200 ? 'high' : 'medium';
++}
++
+ function whenIdle(callback: () => void): () => void {
+   if (typeof window.requestIdleCallback === 'function') {
+     const id = window.requestIdleCallback(callback, { timeout: 2000 });
+@@ -67,25 +77,32 @@
+   const [ready, setReady] = useState(false);
+   const [failed, setFailed] = useState(false);
+   const [progress, setProgress] = useState(0);
++  const [quality, setQuality] = useState<SceneQuality>('medium');
+ 
+   useEffect(() => {
+     if (motionReduced) return;
+-    return whenIdle(() => setEligible(supports3D()));
++    return whenIdle(() => {
++      const ok = supports3D();
++      if (ok) setQuality(detectQuality());
++      setEligible(ok);
++    });
+   }, [motionReduced]);
+ 
+   useEffect(() => {
+     const node = containerRef.current;
+     if (!node) return;
+-    const observer = new IntersectionObserver(
+-      ([entry]) => {
+-        const visible = Boolean(entry?.isIntersecting);
+-        setInView(visible);
+-        if (visible) setSeen(true);
+-      },
+-      { rootMargin: '120px' },
+-    );
+-    observer.observe(node);
+-    return () => observer.disconnect();
++    // Start loading a screen ahead, so the scene is warmed up before it scrolls into view…
++    const preload = new IntersectionObserver(([entry]) => {
++      if (entry?.isIntersecting) setSeen(true);
++    }, { rootMargin: '100% 0px' });
++    // …but only draw frames while it is actually on screen.
++    const visible = new IntersectionObserver(([entry]) => setInView(Boolean(entry?.isIntersecting)));
++    preload.observe(node);
++    visible.observe(node);
++    return () => {
++      preload.disconnect();
++      visible.disconnect();
++    };
+   }, []);
+ 
+   const onError = useCallback((error: unknown) => {
+@@ -106,7 +123,7 @@
+       {showCanvas && (
+         <div className={`absolute inset-0 transition-opacity duration-1000 ${ready ? 'opacity-100' : 'opacity-0'}`} role="img" aria-label={t('sceneLabel')}>
+           <SceneErrorBoundary onError={onError}>
+-            <HeroCanvas progress={scrollYProgress} active={inView} onReady={onReady} onProgress={setProgress} onError={onError} />
++            <HeroCanvas progress={scrollYProgress} active={inView} quality={quality} onReady={onReady} onProgress={setProgress} onError={onError} />
+           </SceneErrorBoundary>
+         </div>
+       )}
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/src/components/layout/Logo.tsx b/tene-mashkaot/src/components/layout/Logo.tsx
+--- a/tene-mashkaot/src/components/layout/Logo.tsx	2026-09-29 22:28:56.000000000 +0000
++++ b/tene-mashkaot/src/components/layout/Logo.tsx	2026-09-30 08:51:58.000000000 +0000
+@@ -13,7 +13,7 @@
+   return (
+     <Link href="/" className="group flex items-center gap-2" aria-label={name}>
+       {logoSrc ? (
+-        <Image src={logoSrc} alt={name} width={160} height={56} className="h-11 w-auto" priority />
++        <Image src={logoSrc} alt={name} width={160} height={56} className="h-11 w-auto" preload />
+       ) : (
+         <span className="flex flex-col leading-none">
+           <span className="font-display text-gold-gradient flex items-center gap-1.5 text-2xl sm:text-[1.7rem]">
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/src/components/shop/SanityImage.tsx b/tene-mashkaot/src/components/shop/SanityImage.tsx
+--- a/tene-mashkaot/src/components/shop/SanityImage.tsx	2026-09-29 22:51:00.000000000 +0000
++++ b/tene-mashkaot/src/components/shop/SanityImage.tsx	2026-09-30 08:51:58.000000000 +0000
+@@ -34,8 +34,8 @@
+   const src = urlForImage(image)?.url();
+   if (!src) return null;
+   return fill ? (
+-    <Image loader={sanityLoader} src={src} alt={alt} sizes={sizes} fill className={className} priority={priority} />
++    <Image loader={sanityLoader} src={src} alt={alt} sizes={sizes} fill className={className} preload={priority} />
+   ) : (
+-    <Image loader={sanityLoader} src={src} alt={alt} sizes={sizes} width={width ?? 800} height={height ?? 1000} className={className} priority={priority} />
++    <Image loader={sanityLoader} src={src} alt={alt} sizes={sizes} width={width ?? 800} height={height ?? 1000} className={className} preload={priority} />
+   );
+ }
+diff -ruN --strip-trailing-cr -x '*.webp' -x '*.glb' -x '*.woff2' -x '*.png' -x tsconfig.tsbuildinfo -x CHANGES.md a/tene-mashkaot/src/lib/defaults.ts b/tene-mashkaot/src/lib/defaults.ts
+--- a/tene-mashkaot/src/lib/defaults.ts	2026-09-30 01:43:28.000000000 +0000
++++ b/tene-mashkaot/src/lib/defaults.ts	2026-09-30 09:17:33.000000000 +0000
+@@ -65,7 +65,7 @@
+ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '');
+ 
+ /** Bump `v` whenever the asset is rebuilt so browsers and CDNs don't serve a stale copy. */
+-export const MODEL_URL = '/models/pour-bottle-glass.glb?v=3';
++export const MODEL_URL = '/models/pour-bottle-glass.glb?v=5';
+ 
+ /** Attribution required by the CC BY 4.0 models in public/models (shown in the footer). */
+ export const MODEL_CREDITS =
