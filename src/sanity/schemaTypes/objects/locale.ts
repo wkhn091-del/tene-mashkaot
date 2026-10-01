@@ -8,14 +8,17 @@ export function requireHebrew(value: LocaleValue): true | string {
   return 'יש למלא לפחות את הטקסט בעברית';
 }
 
+/** The English half of every bilingual field sits folded away, so editors only see the Hebrew box. */
+const englishFieldset = [{ name: 'english', title: 'תרגום לאנגלית (לא חובה)', options: { collapsible: true, collapsed: true } }];
+
 export const localeString = defineType({
   name: 'localeString',
   title: 'טקסט דו-לשוני',
   type: 'object',
-  options: { columns: 2 },
+  fieldsets: englishFieldset,
   fields: [
     defineField({ name: 'he', title: 'עברית', type: 'string' }),
-    defineField({ name: 'en', title: 'English', type: 'string' }),
+    defineField({ name: 'en', title: 'English', type: 'string', fieldset: 'english' }),
   ],
 });
 
@@ -23,9 +26,10 @@ export const localeText = defineType({
   name: 'localeText',
   title: 'טקסט ארוך דו-לשוני',
   type: 'object',
+  fieldsets: englishFieldset,
   fields: [
     defineField({ name: 'he', title: 'עברית', type: 'text', rows: 3 }),
-    defineField({ name: 'en', title: 'English', type: 'text', rows: 3 }),
+    defineField({ name: 'en', title: 'English', type: 'text', rows: 3, fieldset: 'english' }),
   ],
 });
 
@@ -67,8 +71,9 @@ export const localeBlock = defineType({
   name: 'localeBlock',
   title: 'תוכן עשיר דו-לשוני',
   type: 'object',
+  fieldsets: englishFieldset,
   fields: [
     defineField({ name: 'he', title: 'עברית', type: 'array', of: [blockMember] }),
-    defineField({ name: 'en', title: 'English', type: 'array', of: [blockMember] }),
+    defineField({ name: 'en', title: 'English', type: 'array', of: [blockMember], fieldset: 'english' }),
   ],
 });

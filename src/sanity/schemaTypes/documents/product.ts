@@ -23,88 +23,72 @@ const BALLOON_OPTIONS = [
   { title: 'צבעוני משולב', value: 'mixed' },
 ];
 
+/** A unique URL slug for new products, so editors never have to fill one in. */
+export function newProductSlug() {
+  return { _type: 'slug', current: `p-${Math.random().toString(36).slice(2, 8)}` };
+}
+
 type ProductDoc = { kind?: string } | undefined;
 const kindIs =
   (...kinds: string[]) =>
   ({ document }: { document?: unknown }) =>
     !kinds.includes((document as ProductDoc)?.kind ?? '');
 
+const folded = (name: string, title: string) => ({ name, title, options: { collapsible: true, collapsed: true } });
+
 export const product = defineType({
   name: 'product',
   title: 'מוצר',
   type: 'document',
-  groups: [
-    { name: 'main', title: 'כללי', default: true },
-    { name: 'details', title: 'מפרט' },
-    { name: 'custom', title: 'התאמה אישית' },
+  fieldsets: [
+    folded('description', 'תיאור (לא חובה)'),
+    folded('details', 'מפרט: יקב, זן, נפח, כשרות (לא חובה)'),
+    folded('custom', 'התאמה אישית: סרט, הקדשה, צבעי בלונים (לא חובה)'),
+    folded('advanced', 'הגדרות מתקדמות'),
   ],
   fields: [
-    defineField({ name: 'title', title: 'שם המוצר', type: 'localeString', group: 'main', validation: (r) => r.custom(requireHebrew) }),
     defineField({
-      name: 'slug',
-      title: 'כתובת (באנגלית)',
-      type: 'slug',
-      group: 'main',
-      options: { source: (doc) => (doc as { title?: { en?: string; he?: string } }).title?.en || '', maxLength: 96 },
-      validation: (r) => r.required(),
+      name: 'images',
+      title: 'תמונות',
+      description: 'גוררים לכאן תמונה מהמחשב או מהטלפון. התמונה הראשונה היא הראשית.',
+      type: 'array',
+      of: [
+        defineArrayMember({
+          type: 'image',
+          options: { hotspot: true },
+          fields: [defineField({ name: 'alt', title: 'תיאור התמונה לעיוורים (לא חובה)', type: 'localeString' })],
+        }),
+      ],
+      options: { layout: 'grid' },
+      validation: (r) => r.max(8),
     }),
+    defineField({ name: 'title', title: 'שם המוצר', type: 'localeString', validation: (r) => r.custom(requireHebrew) }),
     defineField({
-      name: 'kind',
-      title: 'סוג מוצר',
-      type: 'string',
-      group: 'main',
-      options: { list: CATEGORY_KIND_OPTIONS },
-      validation: (r) => r.required(),
+      name: 'price',
+      title: 'מחיר בשקלים (כולל מע"מ)',
+      type: 'number',
+      validation: (r) => r.required().positive().precision(2),
     }),
     defineField({
       name: 'category',
       title: 'קטגוריה',
       type: 'reference',
-      group: 'main',
       to: [{ type: 'category' }],
+      options: { disableNew: true },
       validation: (r) => r.required(),
     }),
-    defineField({
-      name: 'price',
-      title: 'מחיר (₪, כולל מע"מ)',
-      type: 'number',
-      group: 'main',
-      validation: (r) => r.required().positive().precision(2),
-    }),
-    defineField({ name: 'inStock', title: 'במלאי', type: 'boolean', group: 'main', initialValue: true }),
-    defineField({ name: 'featured', title: 'מוצג בעמוד הבית', type: 'boolean', group: 'main', initialValue: false }),
-    defineField({
-      name: 'images',
-      title: 'תמונות',
-      description: 'מומלץ: בקבוק חתוך על רקע שקוף (PNG/WebP), לפחות 1200px גובה',
-      type: 'array',
-      group: 'main',
-      of: [
-        defineArrayMember({
-          type: 'image',
-          options: { hotspot: true },
-          fields: [defineField({ name: 'alt', title: 'טקסט חלופי (נגישות)', type: 'localeString' })],
-        }),
-      ],
-      validation: (r) => r.max(8),
-    }),
-    defineField({ name: 'shortDescription', title: 'תיאור קצר', type: 'localeString', group: 'main' }),
-    defineField({ name: 'description', title: 'תיאור מלא', type: 'localeBlock', group: 'main' }),
-    defineField({
-      name: 'leadTimeHours',
-      title: 'זמן הכנה (שעות)',
-      description: 'למשל 24 למארז בהתאמה אישית. ריק = ברירת המחדל מהגדרות המשלוחים',
-      type: 'number',
-      group: 'main',
-      validation: (r) => r.min(0).max(336),
-    }),
+    defineField({ name: 'inStock', title: 'במלאי', description: 'לכבות כשהמוצר נגמר', type: 'boolean', initialValue: true }),
+    defineField({ name: 'featured', title: 'להציג בעמוד הבית', type: 'boolean', initialValue: false }),
 
-    defineField({ name: 'kashrut', title: 'כשרות', type: 'localeString', group: 'details' }),
+    defineField({ name: 'shortDescription', title: 'תיאור קצר', type: 'localeString', fieldset: 'description' }),
+    defineField({ name: 'description', title: 'תיאור מלא', type: 'localeBlock', fieldset: 'description' }),
+
+    defineField({ name: 'kashrut', title: 'כשרות', type: 'localeString', fieldset: 'details' }),
     defineField({
       name: 'volumeMl',
       title: 'נפח (מ"ל)',
       type: 'number',
-      group: 'details',
+      fieldset: 'details',
       hidden: kindIs('wine', 'spirits'),
       validation: (r) => r.min(0),
     }),
@@ -112,7 +96,7 @@ export const product = defineType({
       name: 'abv',
       title: 'אחוז אלכוהול',
       type: 'number',
-      group: 'details',
+      fieldset: 'details',
       hidden: kindIs('wine', 'spirits'),
       validation: (r) => r.min(0).max(96),
     }),
@@ -120,7 +104,7 @@ export const product = defineType({
       name: 'wine',
       title: 'פרטי יין',
       type: 'object',
-      group: 'details',
+      fieldset: 'details',
       hidden: kindIs('wine'),
       fields: [
         defineField({ name: 'winery', title: 'יקב', type: 'localeString' }),
@@ -148,7 +132,7 @@ export const product = defineType({
       name: 'spirits',
       title: 'פרטי משקה',
       type: 'object',
-      group: 'details',
+      fieldset: 'details',
       hidden: kindIs('spirits'),
       fields: [
         defineField({ name: 'spiritType', title: 'סוג (וויסקי, וודקה, ליקר...)', type: 'localeString' }),
@@ -161,7 +145,7 @@ export const product = defineType({
       name: 'gift',
       title: 'מארז מתנה',
       type: 'object',
-      group: 'custom',
+      fieldset: 'custom',
       hidden: kindIs('gift'),
       fields: [
         defineField({ name: 'includes', title: 'מה כלול במארז', type: 'array', of: [defineArrayMember({ type: 'localeString' })] }),
@@ -179,7 +163,7 @@ export const product = defineType({
       name: 'balloons',
       title: 'בלונים',
       type: 'object',
-      group: 'custom',
+      fieldset: 'custom',
       hidden: kindIs('balloons'),
       fields: [
         defineField({
@@ -191,6 +175,33 @@ export const product = defineType({
         }),
         defineField({ name: 'allowText', title: 'לאפשר טקסט על הבלון', type: 'boolean', initialValue: true }),
       ],
+    }),
+    defineField({
+      name: 'leadTimeHours',
+      title: 'זמן הכנה (שעות)',
+      description: 'למשל 24 למארז בהתאמה אישית. ריק = ברירת המחדל מהגדרות המשלוחים',
+      type: 'number',
+      fieldset: 'custom',
+      validation: (r) => r.min(0).max(336),
+    }),
+
+    defineField({
+      name: 'kind',
+      title: 'סוג מוצר',
+      description: 'נקבע אוטומטית לפי הקטגוריה. קובע אילו שדות מפרט מופיעים.',
+      type: 'string',
+      fieldset: 'advanced',
+      options: { list: CATEGORY_KIND_OPTIONS, layout: 'radio', direction: 'horizontal' },
+    }),
+    defineField({
+      name: 'slug',
+      title: 'כתובת העמוד באתר',
+      description: 'נוצרת אוטומטית. אין צורך לשנות.',
+      type: 'slug',
+      fieldset: 'advanced',
+      initialValue: newProductSlug,
+      options: { source: (doc) => (doc as { title?: { en?: string } }).title?.en || '', maxLength: 96 },
+      validation: (r) => r.required(),
     }),
   ],
   orderings: [

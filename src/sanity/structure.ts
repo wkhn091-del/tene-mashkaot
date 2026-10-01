@@ -6,6 +6,26 @@ export const structure: StructureResolver = (S) =>
     .title('תנא משקאות')
     .items([
       S.listItem()
+        .title('🍷 מוצרים לפי קטגוריה')
+        .id('products-by-category')
+        .child(
+          S.documentTypeList('category')
+            .id('products-category-picker')
+            .title('בחרו קטגוריה')
+            .defaultOrdering([{ field: 'order', direction: 'asc' }])
+            .child((categoryId) =>
+              S.documentList()
+                .id(`products-in-${categoryId}`)
+                .title('מוצרים')
+                .schemaType('product')
+                .filter('_type == "product" && category._ref == $categoryId')
+                .params({ categoryId })
+                .initialValueTemplates([S.initialValueTemplateItem('product-in-category', { categoryId })]),
+            ),
+        ),
+      S.documentTypeListItem('product').title('📦 כל המוצרים'),
+      S.divider(),
+      S.listItem()
         .title('הזמנות חדשות')
         .id('orders-new')
         .child(
@@ -38,7 +58,6 @@ export const structure: StructureResolver = (S) =>
         ),
       S.documentTypeListItem('eventInquiry').title('פניות לאירועים'),
       S.divider(),
-      S.documentTypeListItem('product').title('מוצרים'),
       S.documentTypeListItem('category').title('קטגוריות'),
       S.documentTypeListItem('promotion').title('מבצעים'),
       S.divider(),
