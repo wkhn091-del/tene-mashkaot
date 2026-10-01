@@ -14,9 +14,12 @@ export function tiltCurve(t: number): number {
   return smoothstep(0, 0.28, t) * (1 - smoothstep(0.78, 1, t));
 }
 
+/** Pour-cycle progress at which the glass is full. */
+const POUR_DONE = 0.8;
+
 /** Portion of a pour cycle's liquid that has reached the glass. */
 export function fillCurve(t: number): number {
-  return smoothstep(0.26, 0.8, t);
+  return smoothstep(0.26, POUR_DONE, t);
 }
 
 /** Glass level reached at the end of the pour (0–1 of the bowl). */
@@ -33,12 +36,17 @@ export function pourProgress(scrollT: number): number {
   return clamp01((scrollT - INTRO_END) / (1 - INTRO_END));
 }
 
-/** Camera fly-in: the room first, then the bar; the pour starts once the camera has arrived. */
-export function pourState(scrollT: number) {
+/**
+ * Camera fly-in: the room first, then the bar; the pour starts once the camera has arrived.
+ * `peak` is the furthest pour progress reached so far: wine never flows back out of the glass, the stream only
+ * runs while new wine is being poured, and a finished pour stays finished.
+ */
+export function pourState(scrollT: number, peak = 0) {
   const p = pourProgress(scrollT);
-  const fill = FILL_MAX * fillCurve(p);
-  const tilt = tiltCurve(p);
-  const pouring = tilt > 0.92 && p > 0.26 && p < 0.8;
+  const reached = Math.max(p, peak);
+  const fill = FILL_MAX * fillCurve(reached);
+  const tilt = reached >= POUR_DONE && p < reached - 0.002 ? 0 : tiltCurve(p);
+  const pouring = p >= reached - 0.002 && tilt > 0.92 && p > 0.26 && p < 0.8;
   const intro = smoothstep(0, INTRO_END, scrollT);
-  return { fill, tilt, pouring, intro };
+  return { fill, tilt, pouring, intro, reached };
 }

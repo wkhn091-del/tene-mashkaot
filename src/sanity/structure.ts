@@ -2,6 +2,7 @@ import type { StructureResolver } from 'sanity/structure';
 
 export const structure: StructureResolver = (S) =>
   S.list()
+    .id('root')
     .title('תנא משקאות')
     .items([
       S.listItem()
@@ -9,6 +10,7 @@ export const structure: StructureResolver = (S) =>
         .id('orders-new')
         .child(
           S.documentList()
+            .id('orders-new-list')
             .title('הזמנות חדשות')
             .schemaType('order')
             .filter('_type == "order" && status == "new"')
@@ -19,6 +21,7 @@ export const structure: StructureResolver = (S) =>
         .id('orders-payment')
         .child(
           S.documentList()
+            .id('orders-payment-list')
             .title('ממתינות לתשלום או לבדיקה')
             .schemaType('order')
             .filter('_type == "order" && paymentStatus in ["pending", "review", "failed"] && status != "cancelled"')
@@ -29,6 +32,7 @@ export const structure: StructureResolver = (S) =>
         .id('orders-all')
         .child(
           S.documentTypeList('order')
+            .id('orders-all-list')
             .title('כל ההזמנות')
             .defaultOrdering([{ field: 'createdAt', direction: 'desc' }]),
         ),

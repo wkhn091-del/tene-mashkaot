@@ -1,6 +1,7 @@
 'use client';
 
 import { motion, useTransform, type MotionValue } from 'motion/react';
+import { useRef } from 'react';
 import { fillCurve, pourProgress } from './pour';
 
 const GLASS_TOP = 262;
@@ -10,10 +11,14 @@ const WINE_MAX_TOP = 300;
 /**
  * Lightweight SVG stand-in for the 3D scene: rendered on the server, used as the loading poster
  * and as the permanent fallback (no WebGL, reduced motion, Save-Data, low-end devices).
- * The wine level follows scroll just like the 3D glass.
+ * The wine level rises with scroll just like the 3D glass, and never drops back.
  */
 export function HeroPoster({ progress, label }: { progress: MotionValue<number>; label: string }) {
-  const level = useTransform(progress, (p) => WINE_BOTTOM - (WINE_BOTTOM - WINE_MAX_TOP) * Math.max(fillCurve(pourProgress(p)), 0.08));
+  const peak = useRef(0);
+  const level = useTransform(progress, (p) => {
+    peak.current = p <= 0 ? 0 : Math.max(peak.current, pourProgress(p));
+    return WINE_BOTTOM - (WINE_BOTTOM - WINE_MAX_TOP) * Math.max(fillCurve(peak.current), 0.08);
+  });
   const height = useTransform(level, (y) => WINE_BOTTOM + 40 - y);
 
   return (

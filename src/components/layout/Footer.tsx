@@ -1,11 +1,10 @@
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
-import { MODEL_CREDITS } from '@/lib/defaults';
 import { formatPhone } from '@/lib/format';
 import { localize } from '@/lib/i18n-utils';
 import type { SiteSettings } from '@/lib/types';
-import { wazeLink, whatsappLink } from '@/lib/whatsapp';
-import { FacebookIcon, InstagramIcon, MapPinIcon, PhoneIcon, WazeIcon, WhatsAppIcon } from '../ui/icons';
+import { wazeLink } from '@/lib/whatsapp';
+import { FacebookIcon, InstagramIcon, MapPinIcon, PhoneIcon } from '../ui/icons';
 import { PhotoBackdrop } from '../ui/PhotoBackdrop';
 import { HoursList } from './HoursList';
 import { Logo } from './Logo';
@@ -61,18 +60,6 @@ export async function Footer({ locale, settings }: { locale: string; settings: S
               </a>
             )}
           </div>
-          {settings.whatsappGroupUrl && (
-            <a
-              href={settings.whatsappGroupUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-[#4ade80] underline-offset-4 hover:underline"
-            >
-              <WhatsAppIcon width={18} height={18} />
-              {t('joinGroup')}
-              <span className="sr-only">{tCommon('newTab')}</span>
-            </a>
-          )}
         </div>
 
         <div>
@@ -89,20 +76,6 @@ export async function Footer({ locale, settings }: { locale: string; settings: S
               <a href={phoneHref} className="flex items-center gap-2 hover:text-gold-200">
                 <PhoneIcon width={18} height={18} className="shrink-0 text-gold-400" />
                 <span dir="ltr">{formatPhone(settings.phone)}</span>
-              </a>
-            </li>
-            <li>
-              <a href={whatsappLink(settings.whatsapp)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-gold-200">
-                <WhatsAppIcon width={18} height={18} className="shrink-0 text-gold-400" />
-                {tCommon('whatsapp')}
-                <span className="sr-only">{tCommon('newTab')}</span>
-              </a>
-            </li>
-            <li>
-              <a href={wazeLink(fullAddress)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-gold-200">
-                <WazeIcon width={18} height={18} className="shrink-0 text-gold-400" />
-                {tCommon('waze')}
-                <span className="sr-only">{tCommon('newTab')}</span>
               </a>
             </li>
           </ul>
@@ -144,12 +117,11 @@ export async function Footer({ locale, settings }: { locale: string; settings: S
         <p className="bg-black/30 px-4 py-3 text-center text-sm font-bold text-gold-100" role="note">
           {localize(settings.alcoholWarning, locale)}
         </p>
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-5 text-xs text-cream/55 sm:flex-row sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 pt-5 pb-24 text-xs text-cream/55 sm:flex-row sm:px-6 sm:pb-5">
           <p>
             {t('rights', { year: new Date().getFullYear(), name: businessName })}
             {settings.legal.businessId && <> · {t('businessId', { id: settings.legal.businessId })}</>}
           </p>
-          <p>{t('modelCredit', { credit: settings.modelCredit || MODEL_CREDITS })}</p>
         </div>
       </div>
     </footer>

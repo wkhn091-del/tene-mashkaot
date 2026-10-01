@@ -7,6 +7,7 @@ import { Link } from '@/i18n/navigation';
 import type { PortableTextBlock } from '@portabletext/react';
 import { fillTokens, LEGAL_CONTENT, LEGAL_SLUG_LIST, type LegalSlug, type LegalTokens } from '@/content/legal';
 import { getLegalPage, getSiteSettings } from '@/lib/data';
+import { MODEL_CREDITS } from '@/lib/defaults';
 import { localize, localizeBlock } from '@/lib/i18n-utils';
 import { legalTokens } from '@/lib/legal-tokens';
 import { alternatesFor } from '@/lib/seo';
@@ -50,7 +51,12 @@ export default async function LegalPage({ params }: { params: Params }) {
   setRequestLocale(locale);
   if (!isLegalSlug(slug)) notFound();
 
-  const [t, cms, settings] = await Promise.all([getTranslations({ locale, namespace: 'legal' }), getLegalPage(slug), getSiteSettings()]);
+  const [t, tFooter, cms, settings] = await Promise.all([
+    getTranslations({ locale, namespace: 'legal' }),
+    getTranslations({ locale, namespace: 'footer' }),
+    getLegalPage(slug),
+    getSiteSettings(),
+  ]);
   const lang = locale === 'en' ? 'en' : 'he';
   const fallback = LEGAL_CONTENT[lang][slug];
   const tokens = legalTokens(settings, locale);
@@ -80,6 +86,10 @@ export default async function LegalPage({ params }: { params: Params }) {
             </section>
           ))}
         </div>
+      )}
+
+      {slug === 'terms' && (
+        <p className="mt-10 text-xs text-cream/55">{tFooter('modelCredit', { credit: settings.modelCredit || MODEL_CREDITS })}</p>
       )}
 
       <nav aria-label={t('more')} className="mt-14 border-t border-gold-400/15 pt-6">

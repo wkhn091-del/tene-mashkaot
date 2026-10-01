@@ -88,13 +88,29 @@ export function HeroVisual({ sectionRef }: { sectionRef: RefObject<HTMLElement |
     });
   }, [motionReduced]);
 
+  // The models take a few seconds to download and compile, so once the page itself has loaded, warm the scene up
+  // in the background instead of waiting for the visitor to scroll near it.
+  useEffect(() => {
+    if (!eligible) return;
+    let cancelIdle = () => {};
+    const start = () => {
+      cancelIdle = whenIdle(() => setSeen(true));
+    };
+    if (document.readyState === 'complete') start();
+    else window.addEventListener('load', start, { once: true });
+    return () => {
+      window.removeEventListener('load', start);
+      cancelIdle();
+    };
+  }, [eligible]);
+
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
-    // Start loading a screen ahead, so the scene is warmed up before it scrolls into view…
+    // Visitors who scroll straight down still start loading a couple of screens ahead…
     const preload = new IntersectionObserver(([entry]) => {
       if (entry?.isIntersecting) setSeen(true);
-    }, { rootMargin: '100% 0px' });
+    }, { rootMargin: '200% 0px' });
     // …but only draw frames while it is actually on screen.
     const visible = new IntersectionObserver(([entry]) => setInView(Boolean(entry?.isIntersecting)));
     preload.observe(node);

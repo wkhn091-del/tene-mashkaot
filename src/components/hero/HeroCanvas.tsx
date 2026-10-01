@@ -29,7 +29,7 @@ import {
   type PerspectiveCamera,
 } from 'three';
 import { MODEL_URL } from '@/lib/defaults';
-import { pourState, STAGE_SIDE_QUERY } from './pour';
+import { pourProgress, pourState, STAGE_SIDE_QUERY } from './pour';
 
 /** The source model is ~0.2m tall; scale it to scene units. */
 const MODEL_SCALE = 20;
@@ -384,7 +384,7 @@ function Scene({
   const rigRef = useRef<typeof rig | null>(null);
   const size = useThree((s) => s.size);
   const pointer = useRef({ x: 0, y: 0 });
-  const smoothed = useRef({ scroll: progress.get(), tilt: 0 });
+  const smoothed = useRef({ scroll: progress.get(), tilt: 0, peak: 0 });
   const tmp = useMemo(
     () => ({ mouth: new Vector3(), axis: new Vector3(), land: new Vector3(), target: new Vector3(), look: new Vector3(), aim: new Vector3() }),
     [],
@@ -399,7 +399,8 @@ function Scene({
   }, [rig]);
 
   useEffect(() => {
-    rig.glass.material = rig.glassMaterials[quality];
+    const current = rigRef.current;
+    if (current) current.glass.material = current.glassMaterials[quality];
     invalidate();
   }, [rig, quality, invalidate]);
 
@@ -407,6 +408,11 @@ function Scene({
   // page costs the GPU nothing.
   useEffect(() => {
     if (!active) return;
+    // No frames run while the scene is off screen; jump to where the scroll is now instead of replaying the
+    // whole pour, so arriving from below shows the finished pour.
+    const s = smoothed.current;
+    s.scroll = progress.get();
+    s.peak = Math.max(s.peak, pourProgress(s.scroll));
     invalidate();
     return progress.on('change', () => invalidate());
   }, [progress, active, invalidate]);
@@ -488,7 +494,10 @@ function Scene({
     const s = smoothed.current;
     const target = progress.get();
     s.scroll = MathUtils.damp(s.scroll, target, 6, dt);
-    const { fill, tilt, pouring, intro } = pourState(s.scroll);
+    // Back above the section: the next scroll down pours again.
+    if (target <= 0 && s.scroll < 0.01) s.peak = 0;
+    const { fill, tilt, pouring, intro, reached } = pourState(s.scroll, s.peak);
+    s.peak = reached;
     s.tilt = MathUtils.damp(s.tilt, tilt, 10, dt);
     const k = s.tilt;
 
