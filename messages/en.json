@@ -320,6 +320,8 @@
       "6": "Saturday night"
     },
     "motzash": "{minutes} min after Shabbat ends – {close}",
+    "until": "until {time}",
+    "opensAfterShabbat": "Opens {minutes} min after Shabbat ends",
     "closed": "Closed",
     "mapTitle": "Map to Tene Mashkaot",
     "gallery": "Inside the store",

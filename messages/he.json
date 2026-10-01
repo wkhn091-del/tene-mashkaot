@@ -320,6 +320,8 @@
       "6": "מוצאי שבת"
     },
     "motzash": "{minutes} דק' אחרי צאת השבת – {close}",
+    "until": "עד {time}",
+    "opensAfterShabbat": "נפתח {minutes} דק' אחרי צאת השבת",
     "closed": "סגור",
     "mapTitle": "מפת הגעה לתנא משקאות",
     "gallery": "הצצה לחנות",

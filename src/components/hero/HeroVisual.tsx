@@ -1,13 +1,22 @@
 'use client';
 
-import { useScroll } from 'motion/react';
+import { animate, useMotionValue, useScroll } from 'motion/react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import { Component, useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Component, useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 import { useA11y } from '../a11y/A11yProvider';
 import { StarIcon } from '../ui/icons';
 import type { SceneQuality } from './HeroCanvas';
 import { HeroPoster } from './HeroPoster';
+import { AUTOPLAY_QUERY, AUTOPLAY_SECONDS } from './pour';
+
+function subscribeAutoplay(onChange: () => void): () => void {
+  const query = window.matchMedia(AUTOPLAY_QUERY);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
+const readAutoplay = () => window.matchMedia(AUTOPLAY_QUERY).matches;
 
 const HeroCanvas = dynamic(() => import('./HeroCanvas'), { ssr: false, loading: () => null });
 
@@ -70,6 +79,9 @@ export function HeroVisual({ sectionRef }: { sectionRef: RefObject<HTMLElement |
   const { motionReduced } = useA11y();
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: sectionRef, offset: ['start start', 'end end'] });
+  const autoplay = useSyncExternalStore(subscribeAutoplay, readAutoplay, () => false);
+  const autoProgress = useMotionValue(0);
+  const [mostlyVisible, setMostlyVisible] = useState(false);
 
   const [eligible, setEligible] = useState(false);
   const [inView, setInView] = useState(false);
@@ -113,11 +125,15 @@ export function HeroVisual({ sectionRef }: { sectionRef: RefObject<HTMLElement |
     }, { rootMargin: '200% 0px' });
     // …but only draw frames while it is actually on screen.
     const visible = new IntersectionObserver(([entry]) => setInView(Boolean(entry?.isIntersecting)));
+    // The self-playing pour starts once most of the stage is on screen, so it isn't half over before it's seen.
+    const centered = new IntersectionObserver(([entry]) => setMostlyVisible(Boolean(entry?.isIntersecting)), { threshold: 0.6 });
     preload.observe(node);
     visible.observe(node);
+    centered.observe(node);
     return () => {
       preload.disconnect();
       visible.disconnect();
+      centered.disconnect();
     };
   }, []);
 
@@ -129,17 +145,33 @@ export function HeroVisual({ sectionRef }: { sectionRef: RefObject<HTMLElement |
 
   const showCanvas = eligible && seen && !failed && !motionReduced;
   const loading = showCanvas && !ready;
+  // Wait for the 3D scene when it is coming, so visitors see the real pour rather than the poster's.
+  const sceneSettled = !eligible || failed || ready || motionReduced;
+
+  useEffect(() => {
+    if (!autoplay || !mostlyVisible || !sceneSettled || autoProgress.get() >= 1) return;
+    if (motionReduced) {
+      autoProgress.set(1);
+      return;
+    }
+    // Scrolled away mid-pour: it pauses, and resumes from the same point on return.
+    const remaining = AUTOPLAY_SECONDS * (1 - autoProgress.get());
+    const controls = animate(autoProgress, 1, { duration: remaining, ease: autoProgress.get() > 0 ? 'easeOut' : [0.4, 0, 0.3, 1] });
+    return () => controls.stop();
+  }, [autoplay, mostlyVisible, sceneSettled, motionReduced, autoProgress]);
+
+  const timeline = autoplay ? autoProgress : scrollYProgress;
 
   return (
     <div ref={containerRef} className="relative h-full w-full">
       <div className={`absolute inset-0 transition-opacity duration-700 ${showCanvas && ready ? 'opacity-0' : 'opacity-100'}`}>
-        <HeroPoster progress={scrollYProgress} label={t('sceneLabel')} />
+        <HeroPoster progress={timeline} label={t('sceneLabel')} />
       </div>
 
       {showCanvas && (
         <div className={`absolute inset-0 transition-opacity duration-1000 ${ready ? 'opacity-100' : 'opacity-0'}`} role="img" aria-label={t('sceneLabel')}>
           <SceneErrorBoundary onError={onError}>
-            <HeroCanvas progress={scrollYProgress} active={inView} quality={quality} onReady={onReady} onProgress={setProgress} onError={onError} />
+            <HeroCanvas progress={timeline} active={inView} quality={quality} onReady={onReady} onProgress={setProgress} onError={onError} />
           </SceneErrorBoundary>
         </div>
       )}

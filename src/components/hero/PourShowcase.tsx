@@ -8,8 +8,8 @@ import { ArrowIcon } from '../ui/icons';
 import { HeroVisual } from './HeroVisual';
 
 /**
- * Scroll-pinned cinematic stage: the camera walks into the wine room, up to the bar,
- * and the bottle pours as the section is scrolled through.
+ * Cinematic stage: the camera walks into the wine room, up to the bar, and the bottle pours. On desktop the stage
+ * is pinned and driven by scrolling; on phones it is a normal one-screen section that plays by itself.
  */
 export function PourShowcase() {
   const t = useTranslations('home');
@@ -17,7 +17,7 @@ export function PourShowcase() {
   const sectionRef = useRef<HTMLElement>(null);
 
   return (
-    <section ref={sectionRef} aria-labelledby="pour-title" className="relative mt-24 h-[300svh]">
+    <section ref={sectionRef} aria-labelledby="pour-title" className="relative mt-24 h-[calc(100svh-4.5rem)] md:pointer-fine:h-[200svh]">
       <div className="sticky top-[4.5rem] h-[calc(100svh-4.5rem)] px-3 py-3 sm:px-6 sm:py-5">
         <div className="relative mx-auto h-full max-w-[96rem] overflow-hidden rounded-[2rem] border border-gold-400/30 bg-[#0d0507] bg-[url('/images/store/bar-backdrop.webp')] bg-cover bg-center shadow-[0_40px_100px_-20px_rgb(0_0_0/0.8)]">
           <HeroVisual sectionRef={sectionRef} />
@@ -38,7 +38,7 @@ export function PourShowcase() {
             </div>
           </div>
 
-          <p aria-hidden className="pointer-events-none absolute inset-x-0 bottom-4 text-center text-sm text-cream/60">
+          <p aria-hidden className="pointer-events-none absolute inset-x-0 bottom-4 hidden text-center text-sm text-cream/60 md:pointer-fine:block">
             {tHero('scrollHint')} ↓
           </p>
           <div aria-hidden className="gold-hairline pointer-events-none absolute inset-x-10 bottom-0" />

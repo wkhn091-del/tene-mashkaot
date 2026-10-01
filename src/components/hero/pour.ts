@@ -28,6 +28,15 @@ export const FILL_MAX = 0.88;
 /** When the pour stage puts its copy beside the scene instead of above it (see `stage-side` in globals.css). */
 export const STAGE_SIDE_QUERY = '(min-width: 48rem) and (min-aspect-ratio: 4/3)';
 
+/**
+ * Phones and touch devices: the stage is not pinned (pinned scrolling feels stuck under a finger), so the pour
+ * plays on its own once the stage is on screen. Must match the `md:pointer-fine:` classes in PourShowcase.
+ */
+export const AUTOPLAY_QUERY = '(max-width: 47.99rem), (pointer: coarse)';
+
+/** Length of the self-playing pour, camera fly-in included. */
+export const AUTOPLAY_SECONDS = 5.5;
+
 /** Share of the scroll spent flying the camera from the doorway to the bar before the pour starts. */
 export const INTRO_END = 0.3;
 

@@ -8,7 +8,16 @@ function earlier(a: string | undefined, b: string): string {
 }
 
 /** Weekly hours table. Friday doubles as the rule for holiday eves; Saturday opens after Shabbat ends. */
-export async function HoursList({ settings, locale, compact = false }: { settings: SiteSettings; locale: string; compact?: boolean }) {
+export async function HoursList({
+  settings,
+  locale,
+  variant = 'table',
+}: {
+  settings: SiteSettings;
+  locale: string;
+  /** `leaders`: day and hours joined by a dotted line, menu style. */
+  variant?: 'table' | 'leaders';
+}) {
   const t = await getTranslations({ locale, namespace: 'visit' });
   const days = [...settings.openingHours].sort((a, b) => a.day - b.day);
 
@@ -30,12 +39,37 @@ export async function HoursList({ settings, locale, compact = false }: { setting
   }
 
   const dayLabel = (day: number) => t(`days.${day}` as 'days.0');
+  const groupLabel = (group: (typeof groups)[number]) =>
+    group.from === group.to ? dayLabel(group.from) : `${dayLabel(group.from)}–${dayLabel(group.to)}`;
+
+  if (variant === 'leaders') {
+    const saturday = days.find((day) => day.day === 6 && !day.closed);
+    return (
+      <dl className="space-y-3.5">
+        {groups.map((group) => {
+          const motzash = saturday && group.from === 6;
+          return (
+            <div key={group.from}>
+              <div className="flex items-baseline gap-3">
+                <dt className="shrink-0 text-cream/65">{groupLabel(group)}</dt>
+                <span aria-hidden className="min-w-4 flex-1 border-b border-dotted border-gold-400/30" />
+                <dd className="whitespace-nowrap font-medium text-cream tabular-nums">
+                  {motzash ? t('until', { time: saturday.close ?? '23:00' }) : group.plain ? group.value : <bdi dir="ltr">{group.value}</bdi>}
+                </dd>
+              </div>
+              {motzash && <p className="mt-1 text-xs text-cream/50">{t('opensAfterShabbat', { minutes: settings.openAfterShabbatMinutes })}</p>}
+            </div>
+          );
+        })}
+      </dl>
+    );
+  }
 
   return (
-    <dl className={cn('grid grid-cols-[auto_1fr] gap-x-6', compact ? 'gap-y-1.5 text-sm' : 'gap-y-3')}>
+    <dl className={cn('grid grid-cols-[auto_1fr] gap-x-6 gap-y-3')}>
       {groups.map((group) => (
         <div key={group.from} className="contents">
-          <dt className="text-cream/70">{group.from === group.to ? dayLabel(group.from) : `${dayLabel(group.from)}–${dayLabel(group.to)}`}</dt>
+          <dt className="text-cream/70">{groupLabel(group)}</dt>
           <dd className="font-medium tabular-nums">{group.plain ? group.value : <bdi dir="ltr">{group.value}</bdi>}</dd>
         </div>
       ))}
