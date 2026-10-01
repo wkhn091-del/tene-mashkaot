@@ -40,9 +40,10 @@ export default async function ProductPage({ params }: { params: Params }) {
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const [t, tCommon, promotions, related, settings, nonce] = await Promise.all([
+  const [t, tCommon, tShop, promotions, related, settings, nonce] = await Promise.all([
     getTranslations({ locale, namespace: 'product' }),
     getTranslations({ locale, namespace: 'common' }),
+    getTranslations({ locale, namespace: 'shop' }),
     getPromotions(),
     getRelatedProducts(product),
     getSiteSettings(),
@@ -95,6 +96,23 @@ export default async function ProductPage({ params }: { params: Params }) {
     },
   };
 
+  const crumbs = [
+    { name: localize(settings.name, locale), path: `/${locale}` },
+    { name: tShop('title'), path: `/${locale}/shop` },
+    ...(product.category ? [{ name: localize(product.category.title, locale), path: `/${locale}/shop/${product.category.slug}` }] : []),
+    { name: title, path: `/${locale}/product/${product.slug}` },
+  ];
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: crumbs.map((crumb, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: crumb.name,
+      item: absoluteUrl(crumb.path),
+    })),
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6">
       <nav aria-label={t('breadcrumb')} className="mb-6 text-sm text-cream/60">
@@ -139,7 +157,7 @@ export default async function ProductPage({ params }: { params: Params }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-            <PriceTag price={price} basePrice={basePrice} locale={locale} size="lg" />
+            <PriceTag price={price} basePrice={basePrice} locale={locale} volumeMl={product.volumeMl} size="lg" />
             {product.inStock && <span className="rounded-full bg-[#1f9d55]/20 px-3 py-1 text-sm font-semibold text-[#86efac]">{t('inStock')}</span>}
           </div>
 
@@ -219,6 +237,7 @@ export default async function ProductPage({ params }: { params: Params }) {
         }}
       />
       <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: jsonLd(productJsonLd) }} />
+      <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbJsonLd) }} />
     </div>
   );
 }

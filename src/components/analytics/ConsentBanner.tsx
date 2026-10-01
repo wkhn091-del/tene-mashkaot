@@ -1,29 +1,25 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Link } from '@/i18n/navigation';
 import { GA_ID, PIXEL_ID, TRACKING_CONFIGURED } from '@/lib/analytics';
 import { buttonStyles, cn } from '@/lib/cn';
-import { OPEN_CONSENT_EVENT, readConsent, writeConsent } from '@/lib/consent';
+import { OPEN_CONSENT_EVENT, readConsent, readConsentCookie, subscribeConsent, writeConsent } from '@/lib/consent';
 
 export function ConsentBanner() {
   const t = useTranslations('consent');
-  const [open, setOpen] = useState(false);
+  // null on the server and during hydration, so the banner only appears once the cookie can be read.
+  const consentCookie = useSyncExternalStore(subscribeConsent, readConsentCookie, () => null);
+  const [reopened, setReopened] = useState(false);
   const [customize, setCustomize] = useState(false);
   const [analytics, setAnalytics] = useState(true);
   const [marketing, setMarketing] = useState(true);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const open = TRACKING_CONFIGURED && (reopened || (consentCookie !== null && !readConsent()));
 
   useEffect(() => {
     if (!TRACKING_CONFIGURED) return;
-    const existing = readConsent();
-    if (existing) {
-      setAnalytics(existing.analytics);
-      setMarketing(existing.marketing);
-    } else {
-      setOpen(true);
-    }
     const onOpen = () => {
       const current = readConsent();
       if (current) {
@@ -31,7 +27,7 @@ export function ConsentBanner() {
         setMarketing(current.marketing);
       }
       setCustomize(true);
-      setOpen(true);
+      setReopened(true);
       window.requestAnimationFrame(() => headingRef.current?.focus());
     };
     window.addEventListener(OPEN_CONSENT_EVENT, onOpen);
@@ -42,7 +38,7 @@ export function ConsentBanner() {
 
   const save = (choice: { analytics: boolean; marketing: boolean }) => {
     writeConsent(choice);
-    setOpen(false);
+    setReopened(false);
   };
 
   const toggle = (label: string, hint: string, checked: boolean, onChange?: (value: boolean) => void) => (

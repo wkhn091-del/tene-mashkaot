@@ -19,7 +19,7 @@ import { formatPrice } from '@/lib/format';
 import { localize } from '@/lib/i18n-utils';
 import { isPromotionActive } from '@/lib/pricing';
 import { STORE_PHOTOS } from '@/lib/store-photos';
-import { whatsappLink } from '@/lib/whatsapp';
+import { googleReviewsLink, whatsappLink } from '@/lib/whatsapp';
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -282,10 +282,26 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
             <p className="text-cream/70">
               {localize(settings.address, locale)}, {localize(settings.city, locale)}
             </p>
-            <Link href="/visit" className={buttonStyles.primary}>
-              {t('visitCta')}
-              <ArrowIcon width={18} height={18} />
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link href="/visit" className={buttonStyles.primary}>
+                {t('visitCta')}
+                <ArrowIcon width={18} height={18} />
+              </Link>
+              <a
+                href={googleReviewsLink(
+                  settings.googleReviewsUrl,
+                  localize(settings.name, 'he'),
+                  `${localize(settings.address, 'he')}, ${localize(settings.city, 'he')}`,
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonStyles.secondary}
+              >
+                <StarIcon width={18} height={18} />
+                {tCommon('googleReviews')}
+                <span className="sr-only">{tCommon('newTab')}</span>
+              </a>
+            </div>
           </div>
         </div>
       </section>

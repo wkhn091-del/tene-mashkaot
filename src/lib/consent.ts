@@ -15,12 +15,24 @@ export interface ConsentState {
   at: string;
 }
 
+/** Raw cookie value ('' when unset), stable between calls so it can back useSyncExternalStore. */
+export function readConsentCookie(): string {
+  if (typeof document === 'undefined') return '';
+  return (
+    document.cookie
+      .split('; ')
+      .find((part) => part.startsWith(`${CONSENT_COOKIE}=`))
+      ?.slice(CONSENT_COOKIE.length + 1) ?? ''
+  );
+}
+
+export function subscribeConsent(onChange: () => void): () => void {
+  window.addEventListener(CONSENT_EVENT, onChange);
+  return () => window.removeEventListener(CONSENT_EVENT, onChange);
+}
+
 export function readConsent(): ConsentState | null {
-  if (typeof document === 'undefined') return null;
-  const raw = document.cookie
-    .split('; ')
-    .find((part) => part.startsWith(`${CONSENT_COOKIE}=`))
-    ?.slice(CONSENT_COOKIE.length + 1);
+  const raw = readConsentCookie();
   if (!raw) return null;
   try {
     const parsed = JSON.parse(decodeURIComponent(raw)) as ConsentState;

@@ -33,6 +33,7 @@
     "whatsapp": "וואטסאפ",
     "waze": "ניווט ב-Waze",
     "googleMaps": "Google Maps",
+    "googleReviews": "ביקורות עלינו בגוגל",
     "openNow": "פתוח עכשיו",
     "closedNow": "סגור כעת",
     "closesAt": "נסגר ב-{time}",
@@ -101,7 +102,15 @@
     "empty": "עדיין אין מוצרים בקטגוריה זו.",
     "emptyCta": "שאלו אותנו בוואטסאפ",
     "count": "{count, plural, =0 {אין מוצרים} one {מוצר אחד} other {# מוצרים}}",
-    "categories": "קטגוריות"
+    "categories": "קטגוריות",
+    "searchLabel": "חיפוש מוצר",
+    "searchPlaceholder": "חפשו יין, יקב, מארז…",
+    "sortLabel": "מיון",
+    "sortRecommended": "מומלץ",
+    "sortPriceAsc": "מחיר: מהנמוך לגבוה",
+    "sortPriceDesc": "מחיר: מהגבוה לנמוך",
+    "noResults": "לא מצאנו מוצרים עבור \"{query}\"",
+    "clearSearch": "ניקוי החיפוש"
   },
   "product": {
     "sale": "מבצע",
@@ -137,6 +146,7 @@
     "balloonText": "טקסט על הבלון",
     "balloonTextPlaceholder": "עד 40 תווים",
     "related": "אולי תאהבו גם",
+    "per100ml": "{price} ל-100 מ\"ל",
     "chars": "{count}/{max}",
     "imagePlaceholder": "תמונה תעלה בקרוב",
     "breadcrumb": "מיקום בעמוד"
@@ -167,7 +177,8 @@
     "savings": "חסכתם {amount}",
     "pricesUpdated": "המחירים עודכנו לפי המבצעים הפעילים",
     "loadError": "לא הצלחנו לעדכן מחירים. נסו שוב בעוד רגע.",
-    "options": "אפשרויות"
+    "options": "אפשרויות",
+    "suggestions": "אולי תרצו להוסיף"
   },
   "checkout": {
     "title": "השלמת הזמנה",

@@ -126,6 +126,7 @@ export interface SiteSettings {
   whatsappGroupUrl?: string;
   facebookUrl?: string;
   instagramUrl?: string;
+  googleReviewsUrl?: string;
   email?: string;
   address: LocaleString;
   city: LocaleString;

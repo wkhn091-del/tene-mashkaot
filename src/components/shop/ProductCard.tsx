@@ -45,7 +45,7 @@ export async function ProductCard({ product, promotions, locale, priority }: { p
         </h3>
         {product.shortDescription && <p className="line-clamp-2 text-sm text-cream/60">{localize(product.shortDescription, locale)}</p>}
         <div className="mt-auto flex items-end justify-between gap-2 pt-2">
-          <PriceTag price={price} basePrice={basePrice} locale={locale} />
+          <PriceTag price={price} basePrice={basePrice} locale={locale} volumeMl={product.volumeMl} />
           <div className="relative z-10">
             {product.inStock &&
               (requiresOptions(product) ? (

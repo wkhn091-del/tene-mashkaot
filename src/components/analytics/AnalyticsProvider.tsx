@@ -50,12 +50,12 @@ function loadPixel(id: string) {
 
 export function AnalyticsProvider() {
   const pathname = usePathname();
-  const [consent, setConsent] = useState<ConsentState | null>(null);
+  // Renders nothing, so reading the cookie during the first client render cannot cause a hydration mismatch.
+  const [consent, setConsent] = useState<ConsentState | null>(readConsent);
   const previous = useRef<ConsentState | null>(null);
   const firstPath = useRef(true);
 
   useEffect(() => {
-    setConsent(readConsent());
     const onChange = (event: Event) => setConsent((event as CustomEvent<ConsentState>).detail);
     window.addEventListener(CONSENT_EVENT, onChange);
     return () => window.removeEventListener(CONSENT_EVENT, onChange);

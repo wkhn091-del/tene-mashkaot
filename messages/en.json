@@ -33,6 +33,7 @@
     "whatsapp": "WhatsApp",
     "waze": "Navigate with Waze",
     "googleMaps": "Google Maps",
+    "googleReviews": "Our Google reviews",
     "openNow": "Open now",
     "closedNow": "Closed now",
     "closesAt": "Closes at {time}",
@@ -101,7 +102,15 @@
     "empty": "No products in this category yet.",
     "emptyCta": "Ask us on WhatsApp",
     "count": "{count, plural, =0 {No products} one {1 product} other {# products}}",
-    "categories": "Categories"
+    "categories": "Categories",
+    "searchLabel": "Search products",
+    "searchPlaceholder": "Search wine, winery, gift basket…",
+    "sortLabel": "Sort",
+    "sortRecommended": "Recommended",
+    "sortPriceAsc": "Price: low to high",
+    "sortPriceDesc": "Price: high to low",
+    "noResults": "No products found for \"{query}\"",
+    "clearSearch": "Clear search"
   },
   "product": {
     "sale": "Sale",
@@ -137,6 +146,7 @@
     "balloonText": "Text on balloon",
     "balloonTextPlaceholder": "Up to 40 characters",
     "related": "You may also like",
+    "per100ml": "{price} per 100 ml",
     "chars": "{count}/{max}",
     "imagePlaceholder": "Image coming soon",
     "breadcrumb": "Breadcrumb"
@@ -167,7 +177,8 @@
     "savings": "You saved {amount}",
     "pricesUpdated": "Prices were updated according to active promotions",
     "loadError": "We couldn't refresh prices. Please try again shortly.",
-    "options": "Options"
+    "options": "Options",
+    "suggestions": "You might also add"
   },
   "checkout": {
     "title": "Checkout",

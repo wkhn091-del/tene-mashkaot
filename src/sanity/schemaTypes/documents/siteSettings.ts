@@ -57,6 +57,13 @@ export const siteSettings = defineType({
     defineField({ name: 'whatsappGroupUrl', title: 'קישור לקבוצת וואטסאפ', type: 'url', group: 'contact' }),
     defineField({ name: 'facebookUrl', title: 'פייסבוק', type: 'url', group: 'contact' }),
     defineField({ name: 'instagramUrl', title: 'אינסטגרם', type: 'url', group: 'contact' }),
+    defineField({
+      name: 'googleReviewsUrl',
+      title: 'קישור לביקורות בגוגל',
+      description: 'מ-Google Business Profile: "קבלו עוד ביקורות" ← העתקת הקישור. ריק = חיפוש החנות במפות גוגל.',
+      type: 'url',
+      group: 'contact',
+    }),
     defineField({ name: 'email', title: 'מייל ליצירת קשר', type: 'string', group: 'contact', validation: (r) => r.email() }),
     defineField({ name: 'address', title: 'רחוב ומספר', type: 'localeString', group: 'contact', validation: (r) => r.custom(requireHebrew) }),
     defineField({ name: 'city', title: 'עיר', type: 'localeString', group: 'contact', validation: (r) => r.custom(requireHebrew) }),

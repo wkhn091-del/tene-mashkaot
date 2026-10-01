@@ -1,11 +1,32 @@
 import { getTranslations } from 'next-intl/server';
 import { getCategories, getProducts, getPromotions, getSiteSettings } from '@/lib/data';
-import type { Category } from '@/lib/types';
+import { getProductPrice } from '@/lib/pricing';
+import { normalizeSearch } from '@/lib/search';
+import type { Category, LocaleString, Product } from '@/lib/types';
 import { whatsappLink } from '@/lib/whatsapp';
 import { SectionHeading } from '../ui/SectionHeading';
 import { CategoryNav } from './CategoryNav';
 import { EmptyState } from './EmptyState';
-import { ProductGrid } from './ProductGrid';
+import { ProductBrowser } from './ProductBrowser';
+import { ProductCard } from './ProductCard';
+
+function searchText(product: Product): string {
+  const both = (value?: LocaleString) => [value?.he, value?.en];
+  return normalizeSearch(
+    [
+      ...both(product.title),
+      ...both(product.shortDescription),
+      ...both(product.category?.title),
+      ...both(product.wine?.winery),
+      ...both(product.wine?.series),
+      ...both(product.wine?.grape),
+      ...both(product.spirits?.spiritType),
+      ...both(product.spirits?.country),
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
+}
 
 export async function ShopView({ locale, category, title, subtitle }: { locale: string; category?: Category; title: string; subtitle?: string }) {
   const [t, tCommon, categories, products, promotions, settings] = await Promise.all([
@@ -17,17 +38,23 @@ export async function ShopView({ locale, category, title, subtitle }: { locale: 
     getSiteSettings(),
   ]);
 
+  const entries = products.map((product, index) => ({
+    id: product._id,
+    text: searchText(product),
+    price: getProductPrice(product, promotions).price,
+    card: <ProductCard product={product} promotions={promotions} locale={locale} priority={index < 4} />,
+  }));
+
   return (
     <div className="mx-auto max-w-7xl px-4 pt-10 sm:px-6">
       <SectionHeading as="h1" title={title} subtitle={subtitle} />
       <CategoryNav categories={categories} active={category?.slug} locale={locale} />
-      <p className="mb-6 mt-4 text-sm text-cream/60" aria-live="polite">
-        {t('count', { count: products.length })}
-      </p>
       {products.length > 0 ? (
-        <ProductGrid products={products} promotions={promotions} locale={locale} />
+        <ProductBrowser entries={entries} />
       ) : (
-        <EmptyState message={t('empty')} ctaLabel={t('emptyCta')} whatsappHref={whatsappLink(settings.whatsapp)} newTabLabel={tCommon('newTab')} />
+        <div className="mt-6">
+          <EmptyState message={t('empty')} ctaLabel={t('emptyCta')} whatsappHref={whatsappLink(settings.whatsapp)} newTabLabel={tCommon('newTab')} />
+        </div>
       )}
     </div>
   );

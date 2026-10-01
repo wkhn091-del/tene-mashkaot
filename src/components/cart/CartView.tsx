@@ -5,11 +5,78 @@ import { Link } from '@/i18n/navigation';
 import { buttonStyles, cn } from '@/lib/cn';
 import { formatPrice } from '@/lib/format';
 import { localize } from '@/lib/i18n-utils';
+import type { SanityImage as SanityImageData } from '@/lib/types';
 import { SanityImage } from '../shop/SanityImage';
 import { ProductPlaceholder } from '../shop/ProductPlaceholder';
+import { QuickAddButton } from '../shop/QuickAddButton';
 import { ArrowIcon, MinusIcon, PlusIcon, TrashIcon } from '../ui/icons';
 import { useCart, type CartItem } from './CartProvider';
 import { useQuote } from './useQuote';
+
+export interface CartSuggestion {
+  _id: string;
+  title: string;
+  slug: string;
+  price: number;
+  image?: SanityImageData;
+  kind: string;
+  featured: boolean;
+  requiresOptions: boolean;
+}
+
+const MAX_SUGGESTIONS = 3;
+
+/** Prefers product types the cart doesn't have yet (wine → sweets, gifts, balloons), then featured items. */
+function pickSuggestions(pool: CartSuggestion[], items: CartItem[]): CartSuggestion[] {
+  const inCart = new Set(items.map((i) => i.productId));
+  const cartKinds = new Set(pool.filter((p) => inCart.has(p._id)).map((p) => p.kind));
+  const score = (p: CartSuggestion) => (cartKinds.has(p.kind) ? 0 : 2) + (p.featured ? 1 : 0);
+  return pool
+    .filter((p) => !inCart.has(p._id))
+    .map((p, index) => ({ p, index }))
+    .sort((a, b) => score(b.p) - score(a.p) || a.index - b.index)
+    .slice(0, MAX_SUGGESTIONS)
+    .map(({ p }) => p);
+}
+
+function CartSuggestions({ pool, items }: { pool: CartSuggestion[]; items: CartItem[] }) {
+  const t = useTranslations('cart');
+  const tCommon = useTranslations('common');
+  const locale = useLocale();
+  const picks = pickSuggestions(pool, items);
+  if (!picks.length) return null;
+  return (
+    <section aria-labelledby="cart-suggestions" className="pt-6">
+      <h2 id="cart-suggestions" className="font-display mb-3 text-xl text-gold-200">
+        {t('suggestions')}
+      </h2>
+      <ul className="grid gap-3 sm:grid-cols-3">
+        {picks.map((product) => (
+          <li key={product._id} className="flex items-center gap-3 rounded-2xl border border-gold-400/15 bg-wine-900/40 p-3 sm:flex-col sm:items-stretch">
+            <Link href={`/product/${product.slug}`} className="relative h-20 w-16 shrink-0 overflow-hidden rounded-xl bg-wine-900 sm:h-32 sm:w-full" tabIndex={-1} aria-hidden>
+              {product.image?.asset ? <SanityImage image={product.image} alt="" sizes="(min-width: 640px) 200px, 64px" className="object-contain p-1" /> : null}
+            </Link>
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <Link href={`/product/${product.slug}`} className="line-clamp-2 text-sm font-semibold hover:text-gold-200">
+                {product.title}
+              </Link>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-gold-300">{formatPrice(product.price, locale)}</span>
+                {product.requiresOptions ? (
+                  <Link href={`/product/${product.slug}`} className="rounded-full border border-gold-400/50 px-3 py-1.5 text-xs font-semibold text-gold-200 hover:bg-gold-400/10">
+                    {tCommon('chooseOptions')}
+                  </Link>
+                ) : (
+                  <QuickAddButton product={product} className="px-3 py-1.5 text-xs" />
+                )}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 export function CartItemOptions({ item }: { item: CartItem }) {
   const t = useTranslations('product');
@@ -32,7 +99,7 @@ export function CartItemOptions({ item }: { item: CartItem }) {
   );
 }
 
-export function CartView() {
+export function CartView({ suggestions = [] }: { suggestions?: CartSuggestion[] }) {
   const t = useTranslations('cart');
   const tCommon = useTranslations('common');
   const tErrors = useTranslations('errors');
@@ -71,6 +138,7 @@ export function CartView() {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
+      <div>
       <ul className="space-y-3">
         {items.map((item) => {
           const line = unitPrice.get(item.productId);
@@ -138,6 +206,8 @@ export function CartView() {
           );
         })}
       </ul>
+      <CartSuggestions pool={suggestions} items={items} />
+      </div>
 
       <aside className="h-fit space-y-4 rounded-[var(--radius-card)] border border-gold-400/20 bg-wine-900/60 p-6 lg:sticky lg:top-28" aria-busy={quote.status === 'loading'}>
         <div className="flex items-center justify-between text-lg">

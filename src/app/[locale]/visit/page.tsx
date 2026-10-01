@@ -4,7 +4,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { HoursList } from '@/components/layout/HoursList';
 import { Reveal } from '@/components/motion/Reveal';
 import { SanityImage } from '@/components/shop/SanityImage';
-import { ClockIcon, MapPinIcon, PhoneIcon, ShieldIcon, WazeIcon, WhatsAppIcon } from '@/components/ui/icons';
+import { ClockIcon, MapPinIcon, PhoneIcon, ShieldIcon, StarIcon, WazeIcon, WhatsAppIcon } from '@/components/ui/icons';
 import { SectionHeading } from '@/components/ui/SectionHeading';
 import { OpenNowBadge } from '@/components/visit/OpenNowBadge';
 import { buttonStyles, cn } from '@/lib/cn';
@@ -13,7 +13,7 @@ import { formatPhone } from '@/lib/format';
 import { localize } from '@/lib/i18n-utils';
 import { alternatesFor } from '@/lib/seo';
 import { GALLERY } from '@/lib/store-photos';
-import { googleMapsEmbed, googleMapsLink, wazeLink, whatsappLink } from '@/lib/whatsapp';
+import { googleMapsEmbed, googleMapsLink, googleReviewsLink, wazeLink, whatsappLink } from '@/lib/whatsapp';
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -79,6 +79,16 @@ export default async function VisitPage({ params }: { params: Promise<{ locale: 
               <a href={whatsappLink(settings.whatsapp)} target="_blank" rel="noopener noreferrer" className={cn(buttonStyles.whatsapp, 'justify-start')}>
                 <WhatsAppIcon width={20} height={20} />
                 {tCommon('whatsapp')}
+                <span className="sr-only">{tCommon('newTab')}</span>
+              </a>
+              <a
+                href={googleReviewsLink(settings.googleReviewsUrl, localize(settings.name, 'he'), addressHe)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(buttonStyles.secondary, 'justify-start')}
+              >
+                <StarIcon width={18} height={18} />
+                {tCommon('googleReviews')}
                 <span className="sr-only">{tCommon('newTab')}</span>
               </a>
             </div>
