@@ -45,7 +45,8 @@ export function AgeGate({ initiallyVerified }: { initiallyVerified: boolean }) {
 
   const confirm = () => {
     const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-    document.cookie = `${AGE_COOKIE}=1; Max-Age=${60 * 60 * 24 * 180}; Path=/; SameSite=Lax${secure}`;
+    // Session cookie: the age question returns on every new visit.
+    document.cookie = `${AGE_COOKIE}=1; Path=/; SameSite=Lax${secure}`;
     setState('verified');
   };
 

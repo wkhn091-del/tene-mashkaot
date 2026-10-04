@@ -220,7 +220,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
         {
           heading: 'מה נשמר',
           list: [
-            'אישור גיל (עוגייה בשם tene_age_ok) – כדי שלא תתבקשו לאשר את גילכם בכל כניסה. נשמרת עד 180 יום.',
+            'אישור גיל (עוגייה בשם tene_age_ok) – כדי שלא תתבקשו לאשר את גילכם בכל מעבר בין עמודים. נמחקת כשסוגרים את הדפדפן, ולכן נשאל שוב בכל כניסה חדשה.',
             'סל הקניות (אחסון מקומי) – כדי שהמוצרים יישמרו גם אם תסגרו את הדפדפן.',
             'הגדרות נגישות (אחסון מקומי) – כדי שההגדרות שבחרתם יישמרו.',
             'עוגיית שפה – לזכירת השפה המועדפת.',
@@ -382,7 +382,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
         {
           heading: 'What is stored',
           list: [
-            'Age confirmation (cookie named tene_age_ok) – so you are not asked on every visit. Kept for up to 180 days.',
+            'Age confirmation (cookie named tene_age_ok) – so you are not asked on every page. Deleted when you close the browser, so you are asked again on every new visit.',
             'Shopping cart (local storage) – so your items are kept if you close the browser.',
             'Accessibility settings (local storage) – so your chosen settings are remembered.',
             'Language cookie – to remember your preferred language.',
