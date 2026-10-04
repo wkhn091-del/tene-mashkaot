@@ -2,7 +2,8 @@
  * Builds the hero pour asset from two Sketchfab sources:
  * - "Bottle of red wine": glass and label simplified hard (the source is ~2.8M triangles); the capsule
  *   is rebuilt as a neck foil plus a removable top cap.
- * - "Wine glass": kept as is, plus a wine volume lathed from the bowl's inner profile.
+ * - A wine glass: kept as is, plus a wine volume lathed from the bowl's inner profile. BOWL_PROFILE
+ *   below matches the original glass only; to change the glass, use scripts/replace-pour-glass.mjs.
  * Output node names are what the runtime expects: bottle, label, foil, cap, cork, glass, wine.
  *
  * Usage: node scripts/build-pour-model.mjs <bottle.glb> <glass.glb> [output.glb]

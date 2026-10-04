@@ -38,7 +38,13 @@ export const siteSettings = defineType({
       group: 'brand',
       validation: (r) => r.custom(requireHebrew),
     }),
-    defineField({ name: 'modelCredit', title: 'קרדיט למודל התלת-ממד (אם נדרש ברישיון)', type: 'string', group: 'brand' }),
+    defineField({
+      name: 'modelCredit',
+      title: 'קרדיט נוסף למודל תלת-ממד (אם נדרש ברישיון)',
+      description: 'מתווסף מתחת לקרדיטים הקבועים בעמוד התקנון. לא מחליף אותם.',
+      type: 'string',
+      group: 'brand',
+    }),
 
     defineField({
       name: 'phone',

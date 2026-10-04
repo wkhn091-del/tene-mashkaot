@@ -65,8 +65,34 @@ export const DEFAULT_CATEGORIES: Category[] = [
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 /** Bump `v` whenever the asset is rebuilt so browsers and CDNs don't serve a stale copy. */
-export const MODEL_URL = '/models/pour-bottle-glass.glb?v=5';
+export const MODEL_URL = '/models/pour-bottle-glass.glb?v=6';
 
-/** Attribution required by the CC BY 4.0 models in public/models (shown in the footer). */
-export const MODEL_CREDITS =
-  '"Wine Room" by Solis · "bottle of red wine" by Mirriliem · "Actividad A3. Vino/Wine" by anaid.velazco (CC BY 4.0, Sketchfab)';
+/** CC BY 4.0 sources of the models in public/models; the license requires attribution, links and a note of changes. */
+export const MODEL_SOURCES = [
+  {
+    title: 'Wine Room',
+    url: 'https://sketchfab.com/3d-models/wine-room-db5adc689fda40719787051ca43e4ef6',
+    author: 'Solis',
+    authorUrl: 'https://sketchfab.com/dana.digital',
+  },
+  {
+    title: 'bottle of red wine',
+    url: 'https://sketchfab.com/3d-models/bottle-of-red-wine-c2942bec28014e3db3ee9f2494b13fce',
+    author: 'Mirriliem',
+    authorUrl: 'https://sketchfab.com/Mirriliem',
+  },
+  {
+    title: 'Wine Glass',
+    url: 'https://sketchfab.com/3d-models/wine-glass-0367336574904207b7386f39f631750f',
+    author: 'cleisonrodrigues',
+    authorUrl: 'https://sketchfab.com/cleisonctga',
+  },
+  {
+    title: 'Actividad A3. Vino/Wine',
+    url: 'https://sketchfab.com/3d-models/actividad-a3-vinowine-anaid-velazco-07b1df8f30ac43088bef8b20adff40cf',
+    author: 'anaid.velazco',
+    authorUrl: 'https://sketchfab.com/anaid.velazco',
+  },
+] as const;
+
+export const CC_BY_4_URL = 'https://creativecommons.org/licenses/by/4.0/';

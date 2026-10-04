@@ -7,7 +7,7 @@ import { Link } from '@/i18n/navigation';
 import type { PortableTextBlock } from '@portabletext/react';
 import { fillTokens, LEGAL_CONTENT, LEGAL_SLUG_LIST, type LegalSlug, type LegalTokens } from '@/content/legal';
 import { getLegalPage, getSiteSettings } from '@/lib/data';
-import { MODEL_CREDITS } from '@/lib/defaults';
+import { CC_BY_4_URL, MODEL_SOURCES } from '@/lib/defaults';
 import { localize, localizeBlock } from '@/lib/i18n-utils';
 import { legalTokens } from '@/lib/legal-tokens';
 import { alternatesFor } from '@/lib/seo';
@@ -89,7 +89,29 @@ export default async function LegalPage({ params }: { params: Params }) {
       )}
 
       {slug === 'terms' && (
-        <p className="mt-10 text-xs text-cream/55">{tFooter('modelCredit', { credit: settings.modelCredit || MODEL_CREDITS })}</p>
+        <div className="mt-10 space-y-1 text-xs text-cream/55">
+          <p>
+            {tFooter('modelCreditIntro')}{' '}
+            <a href={CC_BY_4_URL} target="_blank" rel="noopener noreferrer license" className="underline underline-offset-2 hover:text-gold-200">
+              CC BY 4.0
+            </a>
+            :
+          </p>
+          <ul className="list-inside list-disc">
+            {MODEL_SOURCES.map((model) => (
+              <li key={model.url} dir="ltr" className="text-start">
+                <a href={model.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-gold-200">
+                  &ldquo;{model.title}&rdquo;
+                </a>{' '}
+                by{' '}
+                <a href={model.authorUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-gold-200">
+                  {model.author}
+                </a>
+              </li>
+            ))}
+          </ul>
+          {settings.modelCredit && <p>{settings.modelCredit}</p>}
+        </div>
       )}
 
       <nav aria-label={t('more')} className="mt-14 border-t border-gold-400/15 pt-6">

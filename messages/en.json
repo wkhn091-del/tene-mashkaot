@@ -335,7 +335,7 @@
     "facebook": "Facebook",
     "instagram": "Instagram",
     "joinGroup": "WhatsApp deals group",
-    "modelCredit": "3D models: {credit}",
+    "modelCreditIntro": "3D models: third-party works from Sketchfab, adapted for this site (simplified, new label and cap), used under",
     "businessId": "Business ID {id}"
   },
   "legal": {

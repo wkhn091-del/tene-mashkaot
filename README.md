@@ -62,6 +62,7 @@ Rebuilding the models from the Sketchfab sources:
 
 ```bash
 node scripts/build-pour-model.mjs <bottle_of_red_wine.glb> <wine_glass.glb>   # bottle + glass + wine volume
+node scripts/replace-pour-glass.mjs <wine_glass.glb>   # swap only the glass ("Wine Glass" by cleisonrodrigues) and re-lathe the wine
 npm run optimize:hero   # error-bounded simplification of the room, side table and bottle
 npm run label           # applies scripts/label/label.webp (source: scripts/label/label.html) to the bottle
 ```
