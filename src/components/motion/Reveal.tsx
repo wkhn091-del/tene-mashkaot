@@ -1,16 +1,23 @@
 'use client';
 
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import type { ReactNode } from 'react';
 
-/** Fade-and-rise on first scroll into view. MotionConfig (A11yProvider) turns it off for reduced motion. */
+/**
+ * Soft rise into place. Opacity is never animated to 0 — on mobile,
+ * whileInView can fail to fire and content would stay invisible.
+ */
 export function Reveal({ children, delay = 0, className, y = 24 }: { children: ReactNode; delay?: number; className?: string; y?: number }) {
+  const reduce = useReducedMotion();
+  if (reduce) {
+    return <div className={className}>{children}</div>;
+  }
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
+      initial={{ y }}
+      whileInView={{ y: 0 }}
+      viewport={{ once: true, amount: 0.12 }}
       transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
     >
       {children}
