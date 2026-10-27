@@ -13,6 +13,7 @@ import { useCart } from '../cart/CartProvider';
 import { toQuoteItems, useQuote } from '../cart/useQuote';
 import { Turnstile, type TurnstileHandle } from '../forms/Turnstile';
 import { LAST_ORDER_KEY } from '@/lib/order-storage';
+import { MobileStickyBar, MobileStickySpacer } from '../ui/MobileStickyBar';
 import { StarIcon, WhatsAppIcon } from '../ui/icons';
 import { itemsValue, rememberPurchase, track } from '@/lib/analytics';
 
@@ -557,12 +558,30 @@ export function CheckoutForm({ pickupAddress, cardPaymentsEnabled = false }: { p
         <button
           type="submit"
           disabled={pending || blocked || hasInvalidItems || !quote || (totals ? !totals.meetsMinOrder : false)}
-          className={cn(buttonStyles.primary, 'w-full py-4 text-lg')}
+          className={cn(buttonStyles.primary, 'hidden w-full py-4 text-lg lg:inline-flex')}
         >
           {pending ? t('submitting') : paymentMethod === 'card' ? t('submitPay') : t('submit')}
         </button>
-        <p className="text-center text-xs text-cream/60">{paymentMethod === 'card' ? t('paymentNoteCard') : t('paymentNote')}</p>
+        <p className="hidden text-center text-xs text-cream/60 lg:block">{paymentMethod === 'card' ? t('paymentNoteCard') : t('paymentNote')}</p>
       </aside>
+
+      <MobileStickySpacer />
+      <MobileStickyBar>
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-cream/60">{t('total')}</p>
+            <p className="truncate text-lg font-bold text-gold-300">{totals ? formatPrice(totals.total, locale) : '…'}</p>
+          </div>
+          <button
+            type="submit"
+            disabled={pending || blocked || hasInvalidItems || !quote || (totals ? !totals.meetsMinOrder : false)}
+            className={cn(buttonStyles.primary, 'min-h-12 shrink-0 px-5 py-3 text-base')}
+          >
+            {pending ? t('submitting') : paymentMethod === 'card' ? t('submitPay') : t('submit')}
+          </button>
+        </div>
+        <p className="mx-auto mt-1.5 max-w-lg text-center text-[11px] text-cream/55">{paymentMethod === 'card' ? t('paymentNoteCard') : t('paymentNote')}</p>
+      </MobileStickyBar>
     </form>
   );
 }

@@ -15,7 +15,7 @@ export function AccessibilityMenu() {
   const pathname = usePathname();
   const { prefs, update, reset } = useA11y();
   const [open, setOpen] = useState(false);
-  const aboveStickyCta = pathname.startsWith('/product/') || pathname.startsWith('/cart');
+  const aboveStickyCta = pathname.startsWith('/product/') || pathname.startsWith('/cart') || pathname.startsWith('/checkout');
   const panelId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
