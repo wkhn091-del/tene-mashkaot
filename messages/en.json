@@ -279,6 +279,7 @@
     "notFound": "We couldn't find an order with those details. Check the number and phone.",
     "invalid": "Check the order number and phone.",
     "rateLimited": "Too many attempts. Try again in a few minutes.",
+    "bot": "We couldn't verify you're not a bot. Please try again.",
     "found": "Order found",
     "status": "Status",
     "payment": "Payment",

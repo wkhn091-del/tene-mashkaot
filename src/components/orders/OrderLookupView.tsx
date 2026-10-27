@@ -1,7 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
-import { useMemo, useState, useSyncExternalStore, useTransition, type FormEvent } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore, useTransition, type FormEvent } from 'react';
 import { lookupOrder, type LookupOrderResult, type ReorderLine } from '@/actions/order-lookup';
 import { Link, useRouter } from '@/i18n/navigation';
 import { buttonStyles, cn } from '@/lib/cn';
@@ -9,6 +9,7 @@ import { formatPrice } from '@/lib/format';
 import { label, ORDER_STATUS_OPTIONS, PAYMENT_STATUS_OPTIONS } from '@/lib/order-status';
 import { rememberOrder, readOrderHistory, subscribeOrderHistory, type RememberedOrder } from '@/lib/order-history';
 import { useCart } from '../cart/CartProvider';
+import { Turnstile, type TurnstileHandle } from '../forms/Turnstile';
 
 const EMPTY: RememberedOrder[] = [];
 
@@ -27,6 +28,8 @@ export function OrderLookupView() {
   const router = useRouter();
   const { clear, addItem } = useCart();
   const history = useOrderHistory();
+  const turnstile = useRef<TurnstileHandle>(null);
+  const [token, setToken] = useState<string | undefined>();
 
   const [orderNumber, setOrderNumber] = useState('');
   const [phone, setPhone] = useState('');
@@ -44,8 +47,10 @@ export function OrderLookupView() {
         orderNumber: number.trim().toUpperCase(),
         phone: phoneValue,
         locale: locale === 'en' ? 'en' : 'he',
+        turnstileToken: token,
       });
       setResult(next);
+      turnstile.current?.reset();
       if (next.ok) {
         rememberOrder({ orderNumber: next.order.orderNumber, phone: phoneValue, total: next.order.total });
       }
@@ -117,9 +122,10 @@ export function OrderLookupView() {
             required
           />
         </div>
+        <Turnstile ref={turnstile} onToken={setToken} />
         {error && (
           <p role="alert" className="text-sm text-red-300">
-            {error === 'rateLimited' ? t('rateLimited') : error === 'invalid' ? t('invalid') : t('notFound')}
+            {error === 'rateLimited' ? t('rateLimited') : error === 'bot' ? t('bot') : error === 'invalid' ? t('invalid') : t('notFound')}
           </p>
         )}
         <button type="submit" disabled={pending} className={cn(buttonStyles.primary, 'w-full py-3.5')}>
@@ -141,7 +147,7 @@ export function OrderLookupView() {
                   onClick={() => {
                     setOrderNumber(row.orderNumber);
                     setPhone(row.phone);
-                    runLookup(row.orderNumber, row.phone);
+                    setResult(null);
                   }}
                 >
                   <span className="font-semibold" dir="ltr">

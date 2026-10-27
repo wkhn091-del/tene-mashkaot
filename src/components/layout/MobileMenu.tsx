@@ -12,6 +12,7 @@ import { isActivePath, NAV_ITEMS } from './nav-items';
 export function MobileMenu({ phone, phoneHref, whatsappHref }: { phone: string; phoneHref: string; whatsappHref: string }) {
   const t = useTranslations('nav');
   const tCommon = useTranslations('common');
+  const tOrders = useTranslations('orders');
   const pathname = usePathname();
   const from = useLocale() === 'he' ? '100%' : '-100%';
   const [open, setOpen] = useState(false);
@@ -135,6 +136,19 @@ export function MobileMenu({ phone, phoneHref, whatsappHref }: { phone: string; 
                   <li>
                     <Link href="/cart" onClick={close} className="block rounded-xl px-4 py-3 text-lg font-semibold text-cream hover:bg-white/5">
                       {t('cart')}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/orders"
+                      onClick={close}
+                      aria-current={pathname.startsWith('/orders') ? 'page' : undefined}
+                      className={cn(
+                        'block rounded-xl px-4 py-3 text-lg font-semibold transition',
+                        pathname.startsWith('/orders') ? 'bg-gold-400/15 text-gold-300' : 'text-cream hover:bg-white/5',
+                      )}
+                    >
+                      {tOrders('title')}
                     </Link>
                   </li>
                 </ul>

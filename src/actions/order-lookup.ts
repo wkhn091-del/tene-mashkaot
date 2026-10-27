@@ -6,6 +6,7 @@ import { localize } from '@/lib/i18n-utils';
 import { getProductPrice } from '@/lib/pricing';
 import { getClientIp, isSameOrigin } from '@/lib/server/request';
 import { checkRateLimit } from '@/lib/server/rate-limit';
+import { verifyTurnstile } from '@/lib/server/turnstile';
 import { sanityFetchFresh } from '@/sanity/lib/fetch';
 import { phoneKey } from '@/lib/validation';
 import type { BalloonColor, RibbonColor, SanityImage } from '@/lib/types';
@@ -25,6 +26,7 @@ const lookupSchema = z.object({
     .max(20)
     .transform((v) => v.replace(/[\s\-()]/g, '')),
   locale: z.enum(['he', 'en']).default('he'),
+  turnstileToken: z.string().max(2048).optional(),
 });
 
 interface StoredLookupOrder {
@@ -88,7 +90,7 @@ export type LookupOrderResult =
       };
       reorder: ReorderLine[];
     }
-  | { ok: false; error: 'notFound' | 'rateLimited' | 'invalid' | 'forbidden' };
+  | { ok: false; error: 'notFound' | 'rateLimited' | 'invalid' | 'forbidden' | 'bot' };
 
 /**
  * Verifies order number + phone. Failures always return `notFound` (except rate/origin)
@@ -103,7 +105,8 @@ export async function lookupOrder(raw: unknown): Promise<LookupOrderResult> {
   const parsed = lookupSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: 'invalid' };
 
-  const { orderNumber, phone, locale } = parsed.data;
+  const { orderNumber, phone, locale, turnstileToken } = parsed.data;
+  if (!(await verifyTurnstile(turnstileToken, ip))) return { ok: false, error: 'bot' };
   const order = await sanityFetchFresh<StoredLookupOrder>(
     `*[_type == "order" && orderNumber == $orderNumber][0]{
       orderNumber, status, createdAt, fulfillment, paymentMethod, paymentStatus,
