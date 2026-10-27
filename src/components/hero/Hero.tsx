@@ -1,3 +1,5 @@
+'use client';
+
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
@@ -5,10 +7,18 @@ import { buttonStyles, cn } from '@/lib/cn';
 import { STORE_PHOTOS } from '@/lib/store-photos';
 import { LiquidFillText } from '../motion/LiquidFillText';
 import { RisingBubbles } from '../motion/RisingBubbles';
-import { ArrowIcon, StarIcon, TruckIcon, WhatsAppIcon } from '../ui/icons';
+import { ArrowIcon, TruckIcon, WhatsAppIcon } from '../ui/icons';
 
 /** Opening screen: a real photo of the store as the backdrop, with a framed photo collage on large screens. */
-export function Hero({ whatsappHref }: { whatsappHref: string }) {
+export function Hero({
+  whatsappHref,
+  openChip,
+  isOpen,
+}: {
+  whatsappHref: string;
+  openChip: string;
+  isOpen: boolean;
+}) {
   const t = useTranslations('hero');
   const tHome = useTranslations('home');
   const tCommon = useTranslations('common');
@@ -31,8 +41,8 @@ export function Hero({ whatsappHref }: { whatsappHref: string }) {
       <div className="mx-auto grid w-full max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.1fr_1fr]">
         <div className="text-center lg:text-start">
           <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-gold-400/40 bg-wine-950/60 px-4 py-1.5 text-sm font-semibold tracking-wide text-gold-200 backdrop-blur">
-            <StarIcon className="h-3.5 w-3.5 text-gold-400" />
-            {t('eyebrow')}
+            <span aria-hidden className={cn('h-2.5 w-2.5 rounded-full', isOpen ? 'animate-pulse bg-[#4ade80]' : 'bg-cream/40')} />
+            {openChip}
           </p>
           <h1 id="hero-title" className="font-display text-[clamp(3rem,9vw,6.5rem)] leading-[1.02] drop-shadow-[0_4px_24px_rgb(0_0_0/0.6)]">
             <LiquidFillText>{t('title')}</LiquidFillText>
@@ -49,6 +59,10 @@ export function Hero({ whatsappHref }: { whatsappHref: string }) {
               <span className="sr-only">{tCommon('newTab')}</span>
             </a>
           </div>
+          <p className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-gold-200/90">
+            <TruckIcon width={16} height={16} className="text-gold-400" />
+            {tHome('trustDelivery')}
+          </p>
         </div>
 
         <div aria-hidden className="relative hidden h-[68svh] max-h-[640px] lg:block">

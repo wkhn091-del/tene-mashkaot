@@ -53,7 +53,15 @@ export async function ShopView({ locale, category, title, subtitle }: { locale: 
         <ProductBrowser entries={entries} />
       ) : (
         <div className="mt-6">
-          <EmptyState message={t('empty')} ctaLabel={t('emptyCta')} whatsappHref={whatsappLink(settings.whatsapp)} newTabLabel={tCommon('newTab')} />
+          <EmptyState
+            message={t('empty')}
+            ctaLabel={t('emptyCta')}
+            whatsappHref={whatsappLink(
+              settings.whatsapp,
+              locale === 'en' ? t('waOrderMessageEn') : t('waOrderMessage'),
+            )}
+            newTabLabel={tCommon('newTab')}
+          />
         </div>
       )}
     </div>

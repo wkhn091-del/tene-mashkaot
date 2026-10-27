@@ -14,29 +14,42 @@ import { SectionHeading } from '@/components/ui/SectionHeading';
 import { OpenNowBadge } from '@/components/visit/OpenNowBadge';
 import { Link } from '@/i18n/navigation';
 import { buttonStyles, cn } from '@/lib/cn';
-import { getCategories, getFeaturedProducts, getPromotions, getSiteSettings } from '@/lib/data';
+import { getCategories, getDeliverySettings, getFeaturedProducts, getPromotions, getSiteSettings } from '@/lib/data';
 import { formatPrice } from '@/lib/format';
 import { localize } from '@/lib/i18n-utils';
 import { isPromotionActive } from '@/lib/pricing';
+import { getOpenStatus } from '@/lib/schedule';
 import { STORE_PHOTOS } from '@/lib/store-photos';
+import { formatDate, formatDateTime, formatTime } from '@/lib/time-format';
 import { googleReviewsLink, whatsappLink } from '@/lib/whatsapp';
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const [t, tCommon, tShop, settings, categories, featured, promotions] = await Promise.all([
+  const [t, tCommon, tShop, settings, delivery, categories, featured, promotions] = await Promise.all([
     getTranslations({ locale, namespace: 'home' }),
     getTranslations({ locale, namespace: 'common' }),
     getTranslations({ locale, namespace: 'shop' }),
     getSiteSettings(),
+    getDeliverySettings(),
     getCategories(),
     getFeaturedProducts(),
     getPromotions(),
   ]);
 
   const now = new Date();
-  const whatsappHref = whatsappLink(settings.whatsapp);
+  const openStatus = getOpenStatus(now, settings, delivery);
+  const openChip = openStatus.isOpen
+    ? `${tCommon('openNow')}${openStatus.closesAt ? ` · ${tCommon('closesAt', { time: formatTime(openStatus.closesAt, locale) })}` : ''}`
+    : `${tCommon('closedNow')}${openStatus.opensAt ? ` · ${tCommon('opensAt', { time: formatDateTime(openStatus.opensAt, locale) })}` : ''}`;
+  const waOrderMessage = locale === 'en' ? t('waOrderMessageEn') : t('waOrderMessage');
+  const whatsappHref = whatsappLink(settings.whatsapp, waOrderMessage);
+  const reviewsHref = googleReviewsLink(
+    settings.googleReviewsUrl,
+    localize(settings.name, 'he'),
+    `${localize(settings.address, 'he')}, ${localize(settings.city, 'he')}`,
+  );
   const giftTiers = promotions
     .filter((p) => p.kind === 'giftThreshold' && p.threshold && isPromotionActive(p, now))
     .sort((a, b) => (a.threshold ?? 0) - (b.threshold ?? 0));
@@ -60,7 +73,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
   return (
     <>
-      <Hero whatsappHref={whatsappHref} />
+      <Hero whatsappHref={whatsappHref} openChip={openChip} isOpen={openStatus.isOpen} />
 
       <section aria-label={t('trustDelivery')} className="relative z-10 border-y border-gold-400/15 bg-wine-900/70 backdrop-blur">
         <ul className="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-4 py-6 sm:px-6 md:grid-cols-4">
@@ -71,6 +84,18 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
             </li>
           ))}
         </ul>
+        <div className="mx-auto flex max-w-7xl justify-center border-t border-gold-400/10 px-4 pb-5 sm:px-6">
+          <a
+            href={reviewsHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-gold-200 underline-offset-4 hover:underline"
+          >
+            <StarIcon width={16} height={16} />
+            {t('reviewsStrip')}
+            <span className="sr-only">{tCommon('newTab')}</span>
+          </a>
+        </div>
       </section>
 
       <section aria-labelledby="categories-title" className="mx-auto max-w-7xl px-4 pt-24 sm:px-6">
@@ -101,17 +126,25 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                 </p>
               </li>
             ))}
-            {badgePromos.map((promo) => (
-              <li key={promo._id} className="flex items-center gap-4 rounded-[var(--radius-card)] border border-gold-400/30 bg-wine-800/60 p-5">
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gold-400 text-sm font-bold text-wine-950">
-                  {promo.kind === 'percentOff' ? `${promo.percent}%` : <StarIcon width={22} height={22} />}
-                </span>
-                <p>
-                  <span className="block font-bold text-gold-200">{localize(promo.badge, lang) || localize(promo.title, lang)}</span>
-                  <span className="text-cream/85">{localize(promo.title, lang)}</span>
-                </p>
-              </li>
-            ))}
+            {badgePromos.map((promo) => {
+              const endsSoon = promo.endsAt && new Date(promo.endsAt) > now;
+              return (
+                <li key={promo._id} className="flex items-center gap-4 rounded-[var(--radius-card)] border border-gold-400/30 bg-wine-800/60 p-5">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gold-400 text-sm font-bold text-wine-950">
+                    {promo.kind === 'percentOff' ? `${promo.percent}%` : <StarIcon width={22} height={22} />}
+                  </span>
+                  <p>
+                    <span className="block font-bold text-gold-200">{localize(promo.badge, lang) || localize(promo.title, lang)}</span>
+                    <span className="text-cream/85">{localize(promo.title, lang)}</span>
+                    {endsSoon && (
+                      <span className="mt-1 block text-xs font-semibold text-gold-300">
+                        {t('promoUntil', { date: formatDate(promo.endsAt!, locale) })}
+                      </span>
+                    )}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
@@ -159,7 +192,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
               <p className="text-lg text-cream/90">{t('featuredEmpty')}</p>
               <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className={cn(buttonStyles.whatsapp, 'shrink-0')}>
                 <WhatsAppIcon width={20} height={20} />
-                {tCommon('whatsapp')}
+                {t('featuredEmptyCta')}
                 <span className="sr-only">{tCommon('newTab')}</span>
               </a>
             </div>
