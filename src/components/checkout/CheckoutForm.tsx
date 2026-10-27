@@ -192,7 +192,16 @@ export function CheckoutForm({ pickupAddress, cardPaymentsEnabled = false }: { p
 
       if (result.ok) {
         try {
-          window.sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify({ orderNumber: result.orderNumber, whatsappUrl: result.whatsappUrl, summary: result.summary }));
+          window.sessionStorage.setItem(
+            LAST_ORDER_KEY,
+            JSON.stringify({
+              orderNumber: result.orderNumber,
+              whatsappUrl: result.whatsappUrl,
+              summary: result.summary,
+              phone,
+              total: totals?.total,
+            }),
+          );
         } catch {
           // Session storage unavailable; the success page still shows the order number from the URL.
         }

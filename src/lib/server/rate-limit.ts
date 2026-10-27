@@ -2,10 +2,12 @@ import 'server-only';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
-type Bucket = 'order' | 'event' | 'quote' | 'health' | 'export' | 'webhook';
+type Bucket = 'order' | 'orderLookup' | 'event' | 'quote' | 'health' | 'export' | 'webhook';
 
 const LIMITS: Record<Bucket, { tokens: number; window: `${number} ${'s' | 'm' | 'h'}`; windowMs: number }> = {
   order: { tokens: 5, window: '10 m', windowMs: 10 * 60_000 },
+  // Order status lookup by number+phone — tighter than quote to limit guessing.
+  orderLookup: { tokens: 10, window: '10 m', windowMs: 10 * 60_000 },
   event: { tokens: 3, window: '1 h', windowMs: 60 * 60_000 },
   quote: { tokens: 60, window: '1 m', windowMs: 60_000 },
   // Uptime monitors ping every few minutes; this only stops floods.

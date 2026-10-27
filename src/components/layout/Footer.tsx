@@ -133,6 +133,11 @@ export async function Footer({ locale, settings }: { locale: string; settings: S
                   </li>
                 ))}
                 <li>
+                  <Link href="/orders" className="text-cream/60 transition hover:text-gold-200">
+                    {t('trackOrder')}
+                  </Link>
+                </li>
+                <li>
                   <CookieSettingsButton className="text-start text-sm text-cream/60 transition hover:text-gold-200" />
                 </li>
               </ul>

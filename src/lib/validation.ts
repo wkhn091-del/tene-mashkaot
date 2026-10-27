@@ -7,6 +7,13 @@ export function normalizePhone(value: string): string {
   return value.replace(/[\s\-()]/g, '');
 }
 
+/** Canonical Israeli mobile/landline digits for equality checks (972… → 0…). */
+export function phoneKey(value: string): string {
+  let digits = value.replace(/\D/g, '');
+  if (digits.startsWith('972')) digits = `0${digits.slice(3)}`;
+  return digits;
+}
+
 const safeText = (max: number) =>
   z
     .string()

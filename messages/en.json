@@ -266,7 +266,33 @@
     "paymentFailed": "Payment was not completed",
     "paymentFailedBody": "Your card was not charged. Your order is saved – message us on WhatsApp and we will complete it with pay on delivery or a new link.",
     "paymentReview": "Payment received and being reviewed",
-    "paymentReviewBody": "We will contact you only if anything else is needed."
+    "paymentReviewBody": "We will contact you only if anything else is needed.",
+    "trackOrder": "Track an order"
+  },
+  "orders": {
+    "title": "Order tracking",
+    "subtitle": "Enter your order number and phone — no account needed",
+    "orderNumber": "Order number",
+    "phone": "Phone used on the order",
+    "search": "Find order",
+    "searching": "Searching…",
+    "notFound": "We couldn't find an order with those details. Check the number and phone.",
+    "invalid": "Check the order number and phone.",
+    "rateLimited": "Too many attempts. Try again in a few minutes.",
+    "found": "Order found",
+    "status": "Status",
+    "payment": "Payment",
+    "slot": "Time slot",
+    "fulfillment": "Fulfillment",
+    "delivery": "Delivery",
+    "pickup": "Pickup",
+    "total": "Total",
+    "receipt": "View receipt",
+    "reorder": "Order again",
+    "reorderReady": "Items were added to your cart at current prices.",
+    "reorderPartial": "In-stock items were added. {skipped, plural, one {# item unavailable} other {# items unavailable}}.",
+    "reorderHint": "Items that are out of stock or removed from the catalog will not be added.",
+    "recentOnDevice": "Recent orders on this device"
   },
   "events": {
     "title": "Event orders",
@@ -337,7 +363,8 @@
     "instagram": "Instagram",
     "joinGroup": "WhatsApp deals group",
     "modelCreditIntro": "3D models: third-party works from Sketchfab, adapted for this site (simplified, new label and cap), used under",
-    "businessId": "Business ID {id}"
+    "businessId": "Business ID {id}",
+    "trackOrder": "Track order"
   },
   "legal": {
     "updated": "Last updated: {date}",

@@ -6,6 +6,7 @@ import { reportPurchaseOnce } from '@/lib/analytics';
 import { Link } from '@/i18n/navigation';
 import { buttonStyles, cn } from '@/lib/cn';
 import { StarIcon, WhatsAppIcon } from '../ui/icons';
+import { rememberOrder } from '@/lib/order-history';
 import { LAST_ORDER_KEY } from '@/lib/order-storage';
 import { PaymentStatusRefresher } from './PaymentStatusRefresher';
 
@@ -13,6 +14,8 @@ interface StoredOrder {
   orderNumber: string;
   whatsappUrl: string;
   summary: string;
+  phone?: string;
+  total?: number;
 }
 
 function readStoredOrder(orderNumber: string): StoredOrder | null {
@@ -83,6 +86,11 @@ export function OrderSuccess({ orderNumber, fallbackWhatsapp, payment = {} }: { 
   useEffect(() => {
     reportPurchaseOnce(orderNumber, payment.status);
   }, [orderNumber, payment.status]);
+
+  useEffect(() => {
+    if (stored?.phone) rememberOrder({ orderNumber, phone: stored.phone, total: stored.total });
+  }, [orderNumber, stored?.phone, stored?.total]);
+
   const whatsappUrl = stored?.whatsappUrl ?? fallbackWhatsapp;
 
   return (
@@ -107,6 +115,9 @@ export function OrderSuccess({ orderNumber, fallbackWhatsapp, payment = {} }: { 
         </a>
         <Link href="/" className={buttonStyles.secondary}>
           {t('backHome')}
+        </Link>
+        <Link href="/orders" className="text-sm font-semibold text-gold-200 underline underline-offset-4">
+          {t('trackOrder')}
         </Link>
       </div>
     </div>
