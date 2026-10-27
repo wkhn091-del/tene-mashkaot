@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Link } from '@/i18n/navigation';
-import { GA_ID, PIXEL_ID, TRACKING_CONFIGURED } from '@/lib/analytics';
+import { ANALYTICS_TOOLS_CONFIGURED, PIXEL_ID, TRACKING_CONFIGURED } from '@/lib/analytics';
 import { buttonStyles, cn } from '@/lib/cn';
 import { OPEN_CONSENT_EVENT, readConsent, readConsentCookie, subscribeConsent, writeConsent } from '@/lib/consent';
 
@@ -78,7 +78,7 @@ export function ConsentBanner() {
       {customize && (
         <div className="mt-3 max-h-[40svh] space-y-2 overflow-y-auto sm:mt-4 sm:max-h-none sm:grid sm:gap-2 sm:space-y-0 sm:grid-cols-3">
           {toggle(t('necessary'), t('necessaryHint'), true)}
-          {GA_ID && toggle(t('analytics'), t('analyticsHint'), analytics, setAnalytics)}
+          {ANALYTICS_TOOLS_CONFIGURED && toggle(t('analytics'), t('analyticsHint'), analytics, setAnalytics)}
           {PIXEL_ID && toggle(t('marketing'), t('marketingHint'), marketing, setMarketing)}
         </div>
       )}

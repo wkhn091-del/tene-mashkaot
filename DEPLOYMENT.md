@@ -344,14 +344,22 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
   1. Chrome DevTools ← Application ← Service Workers: מוודאים שהוא רשום.
   2. בלשונית Network מסמנים Offline ומרעננים עמוד שכבר ביקרתם בו.
 
-### 12.2 GA4 ו־Meta Pixel – רק בהסכמה
+### 12.2 GA4, Clarity ו־Meta Pixel – רק בהסכמה
 1. **GA4:** ב־analytics.google.com ← Admin ← Create property ← Web stream לכתובת האתר. מעתיקים את ה־Measurement ID ל־`NEXT_PUBLIC_GA_MEASUREMENT_ID`.
-2. **Meta:** ב־Events Manager יוצרים Pixel ומעתיקים את המזהה ל־`NEXT_PUBLIC_META_PIXEL_ID`.
-3. **Redeploy:** משתנים שמתחילים ב־`NEXT_PUBLIC_` נכנסים לקוד בזמן הבנייה, ולכן חייבים לבנות מחדש.
+2. **Microsoft Clarity (מפות חום):** ב־clarity.microsoft.com יוצרים פרויקט לכתובת האתר. מעתיקים את ה־Project ID ל־`NEXT_PUBLIC_CLARITY_PROJECT_ID`. נטען רק אחרי הסכמת «סטטיסטיקה».
+3. **Meta:** ב־Events Manager יוצרים Pixel ומעתיקים את המזהה ל־`NEXT_PUBLIC_META_PIXEL_ID`.
+4. **Redeploy:** משתנים שמתחילים ב־`NEXT_PUBLIC_` נכנסים לקוד בזמן הבנייה, ולכן חייבים לבנות מחדש.
+
+**KPIs להשקה (לעקוב ב־GA4 + Clarity):**
+1. שיעור הוספה לסל מתוך צפיות מוצר (`add_to_cart` / `view_item`)
+2. שיעור התחלת קופה מתוך סל (`begin_checkout`)
+3. הזמנות שהושלמו / שבוע (`purchase`)
+4. נטישה בבאנר גיל / עוגיות (Clarity – הקלטות בכניסה)
+5. מובייל: גלילה עד החנות אחרי ה־Hero (Clarity scroll depth)
 
 איך זה עובד:
 - **באנר העוגיות:** מופיע רק כשאחד המזהים מוגדר. כלום לא נטען לפני לחיצה על "אישור". "רק הכרחיות" לא טוען אף כלי מדידה.
-- **שינוי בחירה:** "הגדרות עוגיות" בתחתית האתר פותח את הבאנר מחדש. ביטול הסכמה מוחק את עוגיות `_ga` ו־`_fb`.
+- **שינוי בחירה:** "הגדרות עוגיות" בתחתית האתר פותח את הבאנר מחדש. ביטול סטטיסטיקה מוחק עוגיות `_ga` ו־Clarity (`_cl*`); ביטול שיווק מוחק `_fb`.
 - **הגדרות פרטיות:** ב־GA4 אותות הפרסום (Google signals) כבויים. Consent Mode v2 מוגדר כך: פרסום כבוי, מדידה פעילה רק באישור.
 - **אירועי מסחר:**
 

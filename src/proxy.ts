@@ -19,6 +19,7 @@ function sentryReportUri(): string | null {
 
 const GA = 'https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com';
 const META = 'https://connect.facebook.net https://www.facebook.com';
+const CLARITY = 'https://www.clarity.ms https://*.clarity.ms https://c.bing.com';
 
 function buildCsp(nonce: string): string {
   const isDev = process.env.NODE_ENV !== 'production';
@@ -26,13 +27,13 @@ function buildCsp(nonce: string): string {
     "default-src 'self'",
     // 'wasm-unsafe-eval' is required by the Meshopt decoder used for the 3D model.
     // Host sources are the CSP2 fallback; CSP3 browsers rely on the nonce + 'strict-dynamic'.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net${isDev ? " 'unsafe-eval'" : ''}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://www.clarity.ms${isDev ? " 'unsafe-eval'" : ''}`,
     // React renders style attributes (motion, layout); inline <style> injection is not user-controlled.
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob: https://cdn.sanity.io ${GA} https://www.facebook.com`,
+    `img-src 'self' data: blob: https://cdn.sanity.io ${GA} https://www.facebook.com ${CLARITY}`,
     "font-src 'self'",
     // blob:/data: let GLTFLoader decode the model's embedded textures.
-    `connect-src 'self' blob: data: https://challenges.cloudflare.com ${GA} ${META}`,
+    `connect-src 'self' blob: data: https://challenges.cloudflare.com ${GA} ${META} ${CLARITY}`,
     'frame-src https://challenges.cloudflare.com https://www.google.com',
     "worker-src 'self' blob:",
     "media-src 'self' https://cdn.sanity.io",

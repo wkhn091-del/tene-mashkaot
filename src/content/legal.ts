@@ -116,7 +116,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
         {
           heading: 'מסירת מידע לצדדים שלישיים',
           paragraphs: [
-            'איננו מוכרים את המידע שלכם. המידע נשמר ומעובד אצל ספקי שירות הפועלים עבורנו בלבד: מערכת ניהול התוכן וההזמנות (Sanity), שירות אחסון האתר (Vercel), שירות שליחת מיילים (Resend), שירות הגנה מפני רובוטים (Cloudflare Turnstile), שירות הגבלת קצב בקשות (Upstash), סליקת אשראי והפקת קבלות (Morning ו-Grow – פרטי הכרטיס מוזנים אצלם בלבד ואינם מגיעים אלינו), הודעות וואטסאפ תפעוליות לחנות (Meta), גיליון ההזמנות הפנימי של החנות (Google) וניטור תקלות טכניות (Sentry, ללא פרטים מזהים). באישורכם בלבד: מדידת שימוש (Google Analytics) ומדידת פרסום (Meta Pixel). חלק מהספקים מאחסנים מידע מחוץ לישראל, בהתאם להוראות הדין.',
+            'איננו מוכרים את המידע שלכם. המידע נשמר ומעובד אצל ספקי שירות הפועלים עבורנו בלבד: מערכת ניהול התוכן וההזמנות (Sanity), שירות אחסון האתר (Vercel), שירות שליחת מיילים (Resend), שירות הגנה מפני רובוטים (Cloudflare Turnstile), שירות הגבלת קצב בקשות (Upstash), סליקת אשראי והפקת קבלות (Morning ו-Grow – פרטי הכרטיס מוזנים אצלם בלבד ואינם מגיעים אלינו), הודעות וואטסאפ תפעוליות לחנות (Meta), גיליון ההזמנות הפנימי של החנות (Google) וניטור תקלות טכניות (Sentry, ללא פרטים מזהים). באישורכם בלבד: מדידת שימוש (Google Analytics ו-Microsoft Clarity) ומדידת פרסום (Meta Pixel). חלק מהספקים מאחסנים מידע מחוץ לישראל, בהתאם להוראות הדין.',
             'מידע עשוי להימסר גם אם נידרש לכך על פי דין.',
           ],
         },
@@ -215,7 +215,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
       updatedAt: LEGAL_UPDATED_AT,
       sections: [
         {
-          paragraphs: ['האתר משתמש בעוגיות ובאחסון מקומי בדפדפן לצורך תפעולו. עוגיות סטטיסטיקה (Google Analytics) ועוגיות שיווק (Meta Pixel) מופעלות רק אם אישרתם אותן בבאנר העוגיות, וניתן לשנות את הבחירה בכל עת דרך "הגדרות עוגיות" בתחתית האתר.'],
+          paragraphs: ['האתר משתמש בעוגיות ובאחסון מקומי בדפדפן לצורך תפעולו. עוגיות סטטיסטיקה (Google Analytics ו-Microsoft Clarity) ועוגיות שיווק (Meta Pixel) מופעלות רק אם אישרתם אותן בבאנר העוגיות, וניתן לשנות את הבחירה בכל עת דרך "הגדרות עוגיות" בתחתית האתר.'],
         },
         {
           heading: 'מה נשמר',
@@ -234,7 +234,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
         {
           heading: 'עוגיות שמופעלות רק באישורכם',
           list: [
-            'סטטיסטיקה – Google Analytics 4: אילו עמודים ומוצרים נצפים, כדי לשפר את האתר. עוגיות שמתחילות ב-_ga. אותות פרסום של Google כבויים.',
+            'סטטיסטיקה – Google Analytics 4 ומפות חום Microsoft Clarity: אילו עמודים ומוצרים נצפים ואיך גוללים באתר. עוגיות שמתחילות ב-_ga וב-_cl. אותות פרסום של Google כבויים.',
             'שיווק – Meta Pixel: מדידת האפקטיביות של פרסום בפייסבוק ובאינסטגרם. עוגיית _fbp.',
           ],
         },
@@ -312,7 +312,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
         {
           heading: 'Sharing with third parties',
           paragraphs: [
-            'We never sell your information. It is stored and processed only by service providers acting on our behalf: the content and order management system (Sanity), hosting (Vercel), email delivery (Resend), bot protection (Cloudflare Turnstile), rate limiting (Upstash), card payments and receipts (Morning and Grow – card details are entered on their page only and never reach us), operational WhatsApp messages to the store (Meta), the store’s internal order sheet (Google) and technical error monitoring (Sentry, without identifying details). Only with your consent: usage statistics (Google Analytics) and ad measurement (Meta Pixel). Some providers store data outside Israel, as permitted by law.',
+            'We never sell your information. It is stored and processed only by service providers acting on our behalf: the content and order management system (Sanity), hosting (Vercel), email delivery (Resend), bot protection (Cloudflare Turnstile), rate limiting (Upstash), card payments and receipts (Morning and Grow – card details are entered on their page only and never reach us), operational WhatsApp messages to the store (Meta), the store’s internal order sheet (Google) and technical error monitoring (Sentry, without identifying details). Only with your consent: usage statistics (Google Analytics and Microsoft Clarity) and ad measurement (Meta Pixel). Some providers store data outside Israel, as permitted by law.',
             'Information may also be disclosed when required by law.',
           ],
         },
@@ -379,7 +379,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
       title: 'Cookie Policy',
       updatedAt: LEGAL_UPDATED_AT,
       sections: [
-        { paragraphs: ['The website uses cookies and local browser storage to work. Statistics cookies (Google Analytics) and marketing cookies (Meta Pixel) are only enabled if you accept them in the cookie banner, and you can change your choice at any time via "Cookie settings" at the bottom of the site.'] },
+        { paragraphs: ['The website uses cookies and local browser storage to work. Statistics cookies (Google Analytics and Microsoft Clarity) and marketing cookies (Meta Pixel) are only enabled if you accept them in the cookie banner, and you can change your choice at any time via "Cookie settings" at the bottom of the site.'] },
         {
           heading: 'What is stored',
           list: [
@@ -392,7 +392,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
             'Anonymous Vercel Analytics traffic measurement – cookie-free and without personal identification.',
             'Your cookie choice (tene_consent cookie) – kept for up to 180 days.',
             'Offline copies of pages and images (service worker) – no personal details, prices or cart.',
-            'Only with your consent – Statistics: Google Analytics 4 (_ga cookies), with Google advertising signals off.',
+            'Only with your consent – Statistics: Google Analytics 4 (_ga) and Microsoft Clarity heatmaps (_cl*), with Google advertising signals off.',
             'Only with your consent – Marketing: Meta Pixel (_fbp cookie) to measure Facebook and Instagram ads.',
           ],
         },

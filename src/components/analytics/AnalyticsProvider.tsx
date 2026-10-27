@@ -2,14 +2,20 @@
 
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { GA_ID, PIXEL_ID } from '@/lib/analytics';
+import { CLARITY_ID, GA_ID, PIXEL_ID } from '@/lib/analytics';
 import { clearCookies, CONSENT_EVENT, readConsent, type ConsentState } from '@/lib/consent';
 
 /*
- * Loaders replicate the official gtag.js / fbevents.js bootstrap snippets without inline scripts:
+ * Loaders replicate the official gtag.js / fbevents.js / Clarity bootstrap snippets without inline scripts:
  * this module is loaded through the nonce-trusted bundle, so under CSP 'strict-dynamic' the script
  * tags it creates are allowed while injected third-party inline code is not.
  */
+
+declare global {
+  interface Window {
+    clarity?: (...args: unknown[]) => void;
+  }
+}
 
 function loadGa(id: string) {
   if (window.gtag) return;
@@ -48,6 +54,18 @@ function loadPixel(id: string) {
   fbq('track', 'PageView');
 }
 
+function loadClarity(id: string) {
+  if (window.clarity) return;
+  const clarity = function (...args: unknown[]) {
+    (clarity.q = clarity.q || []).push(args);
+  } as ((...args: unknown[]) => void) & { q?: unknown[] };
+  window.clarity = clarity;
+  const script = document.createElement('script');
+  script.async = true;
+  script.src = `https://www.clarity.ms/tag/${encodeURIComponent(id)}`;
+  document.head.appendChild(script);
+}
+
 export function AnalyticsProvider() {
   const pathname = usePathname();
   // Renders nothing, so reading the cookie during the first client render cannot cause a hydration mismatch.
@@ -68,13 +86,18 @@ export function AnalyticsProvider() {
     // Withdrawn consent: delete what the trackers stored and reload so their scripts are gone.
     const withdrewAnalytics = before?.analytics && !consent.analytics;
     const withdrewMarketing = before?.marketing && !consent.marketing;
-    if (withdrewAnalytics) clearCookies(/^_ga/);
+    if (withdrewAnalytics) {
+      clearCookies(/^_ga/);
+      clearCookies(/^_cl/);
+      clearCookies(/^CLID$/);
+    }
     if (withdrewMarketing) clearCookies(/^_fb/);
     if (withdrewAnalytics || withdrewMarketing) {
       window.location.reload();
       return;
     }
     if (GA_ID && consent.analytics) loadGa(GA_ID);
+    if (CLARITY_ID && consent.analytics) loadClarity(CLARITY_ID);
     if (PIXEL_ID && consent.marketing) loadPixel(PIXEL_ID);
   }, [consent]);
 

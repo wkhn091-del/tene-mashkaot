@@ -54,7 +54,7 @@
 - R3F עם אורות דינמיים — לא baked lightmaps Path C; לא Image Sequence Path A
 - אין Faceted Search מלא (יש חיפוש+מיון לפי מחיר)
 - ~~אין "האתר זוכר"~~ — **בוצע:** חיפוש אחרון + צפיתם לאחרונה (localStorage)
-- אין KPIs + מפת חום מוגדרים בפריסה
+- ~~אין KPIs + מפת חום~~ — **בוצע:** Clarity + רשימת 5 KPIs (דורש Project ID ב־env)
 - תוכן: האתר החי עלול להיות ריק ממוצרים עד העלאה בסטודיו
 
 ### שאלות פתוחות (לא חוסמות ארכיטקטורה)
@@ -114,7 +114,7 @@
 | אזורי משלוח | כפי שב־CMS (אלעד חינם כברירת מחדל); עדכוני ערים = תוכן CMS בלבד |
 | Cutoff אותו־יום | `sameDayBufferMinutes` + הגדרות `deliverySettings` הקיימות |
 | CSP / צד־שלישי | הרשימה הקיימת מאושרת (Sanity, Turnstile, Morning/Grow, GA4, Meta, Sentry, Resend, Upstash) |
-| מפות חום / KPI | **נדחה** לשלב מדידה נפרד (לא חוסם השקה) |
+| מפות חום / KPI | **בוצע בקוד:** Clarity דרך `NEXT_PUBLIC_CLARITY_PROJECT_ID` + 5 KPIs ב־DEPLOYMENT / BRIEF; דורש מזהה ב־Vercel |
 
 ---
 
@@ -205,6 +205,20 @@ flowchart LR
 
 ---
 
+## KPIs להשקה (מדידה)
+
+| # | מדד | כלי |
+|---|-----|-----|
+| 1 | הוספה לסל / צפייה במוצר | GA4 |
+| 2 | התחלת קופה / סשנים עם סל | GA4 |
+| 3 | הזמנות שהושלמו לשבוע | GA4 `purchase` |
+| 4 | חיכוך בבאנר גיל/עוגיות | Clarity recordings |
+| 5 | גלילה למובייל עד החנות אחרי Hero | Clarity scroll |
+
+הפעלה: להגדיר `NEXT_PUBLIC_CLARITY_PROJECT_ID` (+ GA/Pixel אם עדיין ריקים) ב־Vercel ולבצע Redeploy.
+
+---
+
 ## מודולים ב׳ / ג׳ (מחוץ לסקופ הנוכחי)
 Customer Portal + IAM Auth — **נדחו**. Guest checkout נשאר. אם ישתנה — לעדכן טבלת החלטות למעלה.
 
@@ -221,3 +235,4 @@ Customer Portal + IAM Auth — **נדחו**. Guest checkout נשאר. אם יש�
 | 2026-10-27 | לקוח אישר שלב 2; מודול א׳ סגור |
 | 2026-10-27 | התחלת מילוי פערים לאט: באנר עוגיות קומפקטי במובייל |
 | 2026-10-27 | האתר זוכר: חיפוש אחרון + מוצרים שנצפו |
+| 2026-10-27 | מדידה: Microsoft Clarity + 5 KPIs להשקה |

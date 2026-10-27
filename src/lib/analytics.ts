@@ -18,7 +18,10 @@ declare global {
 
 export const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? '';
 export const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID ?? '';
-export const TRACKING_CONFIGURED = Boolean(GA_ID || PIXEL_ID);
+/** Microsoft Clarity project id (heatmaps / session recordings), gated by analytics consent. */
+export const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? '';
+export const TRACKING_CONFIGURED = Boolean(GA_ID || PIXEL_ID || CLARITY_ID);
+export const ANALYTICS_TOOLS_CONFIGURED = Boolean(GA_ID || CLARITY_ID);
 
 export interface AnalyticsItem {
   id: string;

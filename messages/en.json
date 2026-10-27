@@ -374,7 +374,7 @@
   },
   "consent": {
     "title": "Cookies & privacy",
-    "body": "We use necessary cookies to make the site work (cart, age check, accessibility). With your permission we also use usage statistics (Google Analytics) and ad measurement (Meta) to improve the site and our deals.",
+    "body": "We use necessary cookies to make the site work (cart, age check, accessibility). With your permission we also use usage statistics (Google Analytics and Clarity heatmaps) and ad measurement (Meta) to improve the site and our deals.",
     "bodyShort": "Necessary cookies keep the site working. With your OK we also measure usage and ads.",
     "policy": "Cookie policy",
     "acceptAll": "Accept all",
@@ -384,7 +384,7 @@
     "necessary": "Necessary",
     "necessaryHint": "Always on – the site needs them",
     "analytics": "Statistics",
-    "analyticsHint": "Google Analytics – which pages and products interest people",
+    "analyticsHint": "Google Analytics and Clarity – pages, products and heatmaps",
     "marketing": "Marketing",
     "marketingHint": "Meta Pixel – measuring Facebook & Instagram ads",
     "settings": "Cookie settings"
