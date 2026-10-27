@@ -2,8 +2,8 @@ import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
 import { getDeliverySettings, getProducts, getSiteSettings } from '@/lib/data';
 import { localize } from '@/lib/i18n-utils';
-import { formatDateTime } from '@/lib/time-format';
-import { getOrderingState } from '@/lib/schedule';
+import { formatDateTime, formatTime } from '@/lib/time-format';
+import { getOrderingState, getSameDayInfo } from '@/lib/schedule';
 import { whatsappLink } from '@/lib/whatsapp';
 import { StarIcon, TruckIcon, WhatsAppIcon } from '../ui/icons';
 
@@ -16,7 +16,9 @@ export async function SiteBanners({ locale }: { locale: string }) {
     getTranslations({ locale, namespace: 'home' }),
     getTranslations({ locale, namespace: 'common' }),
   ]);
-  const ordering = getOrderingState(new Date(), settings, delivery);
+  const now = new Date();
+  const ordering = getOrderingState(now, settings, delivery);
+  const sameDay = !ordering.blocked ? getSameDayInfo({ now, settings, delivery }) : { available: false };
   const announcement = settings.announcement?.enabled ? localize(settings.announcement.text, locale) : '';
   const href = settings.announcement?.href?.trim();
   const hasCatalog = products.length > 0;
@@ -24,6 +26,10 @@ export async function SiteBanners({ locale }: { locale: string }) {
     settings.whatsapp,
     locale === 'en' ? tHome('waOrderMessageEn') : tHome('waOrderMessage'),
   );
+  const bannerText =
+    sameDay.available && sameDay.orderBy
+      ? tHome('orderingBannerSameDay', { time: formatTime(sameDay.orderBy, locale) })
+      : tHome('orderingBanner');
 
   return (
     <div className="relative z-[51]">
@@ -36,7 +42,7 @@ export async function SiteBanners({ locale }: { locale: string }) {
         <p role="status" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-wine-800 px-4 py-2 text-center text-sm font-semibold text-gold-100">
           <span className="inline-flex items-center gap-2">
             <TruckIcon width={16} height={16} className="shrink-0 text-gold-300" />
-            {tHome('orderingBanner')}
+            {bannerText}
           </span>
           {hasCatalog ? (
             <Link href="/shop" className="underline underline-offset-4 hover:text-gold-200">

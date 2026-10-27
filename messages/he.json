@@ -76,6 +76,7 @@
     "waOrderMessage": "היי תנא משקאות, רוצה להזמין היום מאלעד",
     "waOrderMessageEn": "Hi Tene Mashkaot, I'd like to order today in Elad",
     "orderingBanner": "פתוחים להזמנות · משלוח חינם באלעד",
+    "orderingBannerSameDay": "משלוח היום זמין · הזמינו עד {time}",
     "orderingBannerCta": "לחנות",
     "orderingBannerWa": "הזמנה בוואטסאפ",
     "promoUntil": "עד {date}",
@@ -191,6 +192,7 @@
     "giftEarned": "🎁 זכיתם במתנה: {gift}",
     "giftNext": "עוד {amount} ותקבלו מתנה: {gift}",
     "giftProgressLabel": "התקדמות לסף המתנה",
+    "sameDay": "משלוח היום עדיין פתוח · הזמינו עד {time}",
     "savings": "חסכתם {amount}",
     "pricesUpdated": "המחירים עודכנו לפי המבצעים הפעילים",
     "loadError": "לא הצלחנו לעדכן מחירים. נסו שוב בעוד רגע.",
@@ -234,6 +236,7 @@
     "submit": "שליחת ההזמנה",
     "submitting": "שולחים…",
     "paymentNote": "התשלום יתבצע בטלפון או בעת המסירה. לא נדרש כרטיס אשראי באתר.",
+    "sameDay": "משלוח היום זמין · הזמינו עד {time} כדי לתפוס סלוט להיום",
     "shabbatBlocked": "האתר אינו מקבל הזמנות בשבת ובחג. ניתן יהיה להזמין החל מ-{time}.",
     "emptyCart": "הסל ריק. הוסיפו מוצרים כדי להמשיך.",
     "errors": {

@@ -9,7 +9,8 @@ import type { SanityImage as SanityImageData } from '@/lib/types';
 import { SanityImage } from '../shop/SanityImage';
 import { ProductPlaceholder } from '../shop/ProductPlaceholder';
 import { QuickAddButton } from '../shop/QuickAddButton';
-import { ArrowIcon, MinusIcon, PlusIcon, TrashIcon } from '../ui/icons';
+import { formatTime } from '@/lib/time-format';
+import { ArrowIcon, MinusIcon, PlusIcon, TrashIcon, TruckIcon } from '../ui/icons';
 import { MobileStickyBar, MobileStickySpacer } from '../ui/MobileStickyBar';
 import { useCart, type CartItem } from './CartProvider';
 import { useQuote } from './useQuote';
@@ -219,6 +220,12 @@ export function CartView({ suggestions = [] }: { suggestions?: CartSuggestion[] 
           <span className="font-bold text-gold-300">{data ? formatPrice(data.totals.itemsTotal, locale) : <span className="skeleton inline-block h-6 w-20 rounded" />}</span>
         </div>
         {data && data.totals.savings > 0 && <p className="text-sm text-[#86efac]">{t('savings', { amount: formatPrice(data.totals.savings, locale) })}</p>}
+        {data?.sameDay.available && data.sameDay.orderBy && (
+          <p className="inline-flex items-start gap-2 rounded-xl border border-[#4ade80]/25 bg-[#06170d]/50 px-3 py-2 text-sm font-semibold text-[#86efac]">
+            <TruckIcon width={16} height={16} className="mt-0.5 shrink-0" />
+            {t('sameDay', { time: formatTime(data.sameDay.orderBy, locale) })}
+          </p>
+        )}
         {gifts?.earned[0] && (
           <p className="rounded-xl bg-gold-400/10 px-3 py-2 text-sm text-gold-100">{t('giftEarned', { gift: localize(gifts.earned[0].gift ?? gifts.earned[0].title, lang) })}</p>
         )}

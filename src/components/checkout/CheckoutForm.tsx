@@ -14,7 +14,7 @@ import { toQuoteItems, useQuote } from '../cart/useQuote';
 import { Turnstile, type TurnstileHandle } from '../forms/Turnstile';
 import { LAST_ORDER_KEY } from '@/lib/order-storage';
 import { MobileStickyBar, MobileStickySpacer } from '../ui/MobileStickyBar';
-import { StarIcon, WhatsAppIcon } from '../ui/icons';
+import { StarIcon, TruckIcon, WhatsAppIcon } from '../ui/icons';
 import { itemsValue, rememberPurchase, track } from '@/lib/analytics';
 
 type ErrorCode = Extract<PlaceOrderResult, { ok: false }>['error'] | 'network';
@@ -277,6 +277,13 @@ export function CheckoutForm({ pickupAddress, cardPaymentsEnabled = false }: { p
           <p role="status" className="flex items-center gap-3 rounded-2xl bg-gold-400 px-5 py-4 font-semibold text-wine-950">
             <StarIcon className="h-5 w-5 shrink-0" />
             {t('shabbatBlocked', { time: quote?.ordering.reopensAt ? formatDateTime(quote.ordering.reopensAt, locale) : '' })}
+          </p>
+        )}
+
+        {!blocked && fulfillment === 'delivery' && quote?.sameDay.available && quote.sameDay.orderBy && (
+          <p role="status" className="flex items-center gap-3 rounded-2xl border border-[#4ade80]/30 bg-[#06170d]/55 px-5 py-3 text-sm font-semibold text-[#86efac]">
+            <TruckIcon width={18} height={18} className="shrink-0" />
+            {t('sameDay', { time: formatTime(quote.sameDay.orderBy, locale) })}
           </p>
         )}
 

@@ -76,6 +76,7 @@
     "waOrderMessage": "Hi Tene Mashkaot, I'd like to order today in Elad",
     "waOrderMessageEn": "Hi Tene Mashkaot, I'd like to order today in Elad",
     "orderingBanner": "Open for orders · Free delivery in Elad",
+    "orderingBannerSameDay": "Same-day delivery available · order by {time}",
     "orderingBannerCta": "Shop now",
     "orderingBannerWa": "Order on WhatsApp",
     "promoUntil": "Until {date}",
@@ -191,6 +192,7 @@
     "giftEarned": "🎁 You've earned a gift: {gift}",
     "giftNext": "Add {amount} more to get: {gift}",
     "giftProgressLabel": "Progress toward gift threshold",
+    "sameDay": "Same-day delivery still open · order by {time}",
     "savings": "You saved {amount}",
     "pricesUpdated": "Prices were updated according to active promotions",
     "loadError": "We couldn't refresh prices. Please try again shortly.",
@@ -234,6 +236,7 @@
     "submit": "Place order",
     "submitting": "Sending…",
     "paymentNote": "Payment is made by phone or upon delivery. No credit card is required on the site.",
+    "sameDay": "Same-day delivery available · order by {time} to keep a slot today",
     "shabbatBlocked": "Orders are not accepted on Shabbat and holidays. Ordering reopens at {time}.",
     "emptyCart": "Your cart is empty. Add products to continue.",
     "errors": {

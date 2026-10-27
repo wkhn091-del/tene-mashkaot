@@ -8,7 +8,7 @@ import { getDeliverySettings, getDeliveryZonesFresh, getProductsByIdsFresh, getP
 import { localize } from '@/lib/i18n-utils';
 import { buildOrderText, formatSlot, type OrderSummary } from '@/lib/order-summary';
 import { computeCart, type CartTotals } from '@/lib/pricing';
-import { getDeliverySlots, getOrderingState, isValidSlot, type DeliverySlot, type OrderingState } from '@/lib/schedule';
+import { getDeliverySlots, getOrderingState, getSameDayInfo, isValidSlot, type DeliverySlot, type OrderingState, type SameDayInfo } from '@/lib/schedule';
 import { createPaymentForm, isCardPaymentEnabled } from '@/lib/server/morning';
 import { notifyNewOrder } from '@/lib/server/notify';
 import { checkRateLimit } from '@/lib/server/rate-limit';
@@ -41,6 +41,7 @@ export type QuoteResult =
       zones: DeliveryZone[];
       slots: DeliverySlot[];
       ordering: OrderingState;
+      sameDay: SameDayInfo;
       pickupEnabled: boolean;
     }
   | { ok: false; error: 'invalid' | 'rateLimited' | 'unavailable' };
@@ -140,6 +141,7 @@ export async function getQuote(raw: unknown, locale: 'he' | 'en'): Promise<Quote
       zones,
       slots: getDeliverySlots({ now, settings, delivery, leadTimeHours: maxLeadTime(available, products) }),
       ordering: getOrderingState(now, settings, delivery),
+      sameDay: getSameDayInfo({ now, settings, delivery, leadTimeHours: maxLeadTime(available, products) }),
       pickupEnabled: delivery.pickupEnabled,
     };
   } catch (error) {

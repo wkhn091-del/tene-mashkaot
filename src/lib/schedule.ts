@@ -229,3 +229,53 @@ export function getOpenStatus(
 export function isValidSlot(slot: { start: string; end: string }, slots: DeliverySlot[]): boolean {
   return slots.some((s) => s.start === slot.start && s.end === slot.end);
 }
+
+export interface SameDayInfo {
+  available: boolean;
+  /** Last instant to place an order that can still receive a same-day delivery slot. */
+  orderBy?: string;
+  /** Earliest same-day slot start currently offered. */
+  firstSlotStart?: string;
+}
+
+/** Real same-day window from CMS buffers + opening hours — not a fake countdown. */
+export function getSameDayInfo({
+  now,
+  settings,
+  delivery,
+  leadTimeHours = 0,
+}: {
+  now: Date;
+  settings: Pick<SiteSettings, 'openingHours' | 'openAfterShabbatMinutes' | 'eveCloseTime' | 'geo'>;
+  delivery: DeliverySettings;
+  leadTimeHours?: number;
+}): SameDayInfo {
+  const todayKey = dateKey(getZonedParts(now));
+  const slots = getDeliverySlots({ now, settings, delivery, leadTimeHours });
+  const todaySlots = slots.filter((s) => s.dayKey === todayKey);
+  if (!todaySlots.length) return { available: false };
+
+  const leadMinutes = Math.max(delivery.sameDayBufferMinutes, Math.max(leadTimeHours, delivery.defaultLeadTimeHours) * 60);
+  const window = getDayWindow(getZonedParts(now), settings, delivery);
+  if (!window) return { available: true, firstSlotStart: todaySlots[0]!.start };
+
+  const slotMs = delivery.slotMinutes * MINUTE;
+  let lastStart = -1;
+  let cursor = Math.max(roundUp(window.open.getTime(), 30), window.open.getTime());
+  while (cursor + slotMs <= window.close.getTime()) {
+    if (!isRestTime(new Date(cursor), settings.geo) && !isRestTime(new Date(cursor + slotMs), settings.geo)) {
+      lastStart = cursor;
+    }
+    cursor += slotMs;
+  }
+  if (lastStart < 0) {
+    return { available: true, orderBy: todaySlots.at(-1)!.start, firstSlotStart: todaySlots[0]!.start };
+  }
+
+  const orderByMs = lastStart - leadMinutes * MINUTE;
+  return {
+    available: true,
+    orderBy: new Date(Math.max(orderByMs, now.getTime())).toISOString(),
+    firstSlotStart: todaySlots[0]!.start,
+  };
+}
