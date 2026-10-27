@@ -160,7 +160,11 @@
     "per100ml": "{price} ל-100 מ\"ל",
     "chars": "{count}/{max}",
     "imagePlaceholder": "תמונה תעלה בקרוב",
-    "breadcrumb": "מיקום בעמוד"
+    "breadcrumb": "מיקום בעמוד",
+    "outOfStockHint": "אפשר עדיין לבדוק זמינות ולהזמין בוואטסאפ.",
+    "outOfStockWa": "שאלו בוואטסאפ על המוצר",
+    "waAskMessage": "היי תנא משקאות, מעוניין ב«{title}» — אזל באתר, אפשר להזמין?",
+    "waAskMessageEn": "Hi Tene Mashkaot, interested in \"{title}\" — out of stock on the site, can I order?"
   },
   "colors": {
     "gold": "זהב",
@@ -186,6 +190,7 @@
     "outOfStockItem": "אזל מהמלאי – יש להסיר מהסל",
     "giftEarned": "🎁 זכיתם במתנה: {gift}",
     "giftNext": "עוד {amount} ותקבלו מתנה: {gift}",
+    "giftProgressLabel": "התקדמות לסף המתנה",
     "savings": "חסכתם {amount}",
     "pricesUpdated": "המחירים עודכנו לפי המבצעים הפעילים",
     "loadError": "לא הצלחנו לעדכן מחירים. נסו שוב בעוד רגע.",

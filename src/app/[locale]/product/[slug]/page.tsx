@@ -5,7 +5,7 @@ import { AddToCartForm } from '@/components/product/AddToCartForm';
 import { ProductGallery } from '@/components/product/ProductGallery';
 import { PriceTag } from '@/components/shop/PriceTag';
 import { ProductGrid } from '@/components/shop/ProductGrid';
-import { ClockIcon } from '@/components/ui/icons';
+import { ClockIcon, TruckIcon } from '@/components/ui/icons';
 import { RichText } from '@/components/ui/RichText';
 import { SectionHeading } from '@/components/ui/SectionHeading';
 import { Link } from '@/i18n/navigation';
@@ -14,6 +14,7 @@ import { localize, localizeBlock } from '@/lib/i18n-utils';
 import { getProductPrice } from '@/lib/pricing';
 import { absoluteUrl, alternatesFor, jsonLd } from '@/lib/seo';
 import { imageUrl } from '@/sanity/lib/image';
+import { whatsappLink } from '@/lib/whatsapp';
 import { headers } from 'next/headers';
 import { TrackOnMount } from '@/components/analytics/TrackOnMount';
 import { RecentlyViewed } from '@/components/shop/RecentlyViewed';
@@ -42,10 +43,11 @@ export default async function ProductPage({ params }: { params: Params }) {
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const [t, tCommon, tShop, promotions, related, settings, nonce] = await Promise.all([
+  const [t, tCommon, tShop, tHome, promotions, related, settings, nonce] = await Promise.all([
     getTranslations({ locale, namespace: 'product' }),
     getTranslations({ locale, namespace: 'common' }),
     getTranslations({ locale, namespace: 'shop' }),
+    getTranslations({ locale, namespace: 'home' }),
     getPromotions(),
     getRelatedProducts(product),
     getSiteSettings(),
@@ -56,6 +58,8 @@ export default async function ProductPage({ params }: { params: Params }) {
   const { basePrice, price, promotion } = getProductPrice(product, promotions);
   const images = product.images ?? [];
   const isAlcohol = product.kind === 'wine' || product.kind === 'spirits';
+  const waAsk = locale === 'en' ? t('waAskMessageEn', { title }) : t('waAskMessage', { title });
+  const whatsappHref = whatsappLink(settings.whatsapp, waAsk);
 
   const specs: { label: string; value: string }[] = [];
   const add = (label: string, value: string | number | undefined | null) => {
@@ -163,6 +167,11 @@ export default async function ProductPage({ params }: { params: Params }) {
             {product.inStock && <span className="rounded-full bg-[#1f9d55]/20 px-3 py-1 text-sm font-semibold text-[#86efac]">{t('inStock')}</span>}
           </div>
 
+          <p className="inline-flex items-center gap-2 text-sm font-semibold text-gold-200/90">
+            <TruckIcon width={16} height={16} className="text-gold-400" />
+            {tHome('trustDelivery')}
+          </p>
+
           {product.leadTimeHours ? (
             <p className="flex items-center gap-2 text-sm text-gold-200">
               <ClockIcon width={18} height={18} />
@@ -171,6 +180,7 @@ export default async function ProductPage({ params }: { params: Params }) {
           ) : null}
 
           <AddToCartForm
+            whatsappHref={whatsappHref}
             product={{
               _id: product._id,
               title,

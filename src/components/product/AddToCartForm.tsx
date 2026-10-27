@@ -7,7 +7,7 @@ import { buttonStyles, cn } from '@/lib/cn';
 import type { BalloonColor, RibbonColor, SanityImage } from '@/lib/types';
 import { useCart } from '../cart/CartProvider';
 import { MobileStickyBar, MobileStickySpacer } from '../ui/MobileStickyBar';
-import { CartIcon, MinusIcon, PlusIcon } from '../ui/icons';
+import { CartIcon, MinusIcon, PlusIcon, WhatsAppIcon } from '../ui/icons';
 
 const SWATCH: Record<string, string> = {
   gold: '#d4a95a',
@@ -63,6 +63,7 @@ function Swatches<T extends string>({
 
 export function AddToCartForm({
   product,
+  whatsappHref,
 }: {
   product: {
     _id: string;
@@ -76,6 +77,7 @@ export function AddToCartForm({
     allowDedication: boolean;
     allowBalloonText: boolean;
   };
+  whatsappHref?: string;
 }) {
   const t = useTranslations('product');
   const tCommon = useTranslations('common');
@@ -91,7 +93,19 @@ export function AddToCartForm({
   const [added, setAdded] = useState(false);
 
   if (!product.inStock) {
-    return <p className="rounded-xl bg-black/40 px-4 py-3 text-center font-semibold text-cream/80">{tCommon('outOfStock')}</p>;
+    return (
+      <div className="space-y-3 rounded-xl border border-gold-400/20 bg-black/40 px-4 py-4 text-center">
+        <p className="font-semibold text-cream/80">{tCommon('outOfStock')}</p>
+        <p className="text-sm text-cream/70">{t('outOfStockHint')}</p>
+        {whatsappHref ? (
+          <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className={cn(buttonStyles.whatsapp, 'w-full justify-center')}>
+            <WhatsAppIcon width={20} height={20} />
+            {t('outOfStockWa')}
+            <span className="sr-only">{tCommon('newTab')}</span>
+          </a>
+        ) : null}
+      </div>
+    );
   }
 
   const hasCustomization = product.ribbonColors.length > 0 || product.balloonColors.length > 0 || product.allowDedication || product.allowBalloonText;

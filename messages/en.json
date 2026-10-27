@@ -160,7 +160,11 @@
     "per100ml": "{price} per 100 ml",
     "chars": "{count}/{max}",
     "imagePlaceholder": "Image coming soon",
-    "breadcrumb": "Breadcrumb"
+    "breadcrumb": "Breadcrumb",
+    "outOfStockHint": "You can still check availability and order on WhatsApp.",
+    "outOfStockWa": "Ask on WhatsApp about this product",
+    "waAskMessage": "Hi Tene Mashkaot, interested in \"{title}\" — out of stock on the site, can I order?",
+    "waAskMessageEn": "Hi Tene Mashkaot, interested in \"{title}\" — out of stock on the site, can I order?"
   },
   "colors": {
     "gold": "Gold",
@@ -186,6 +190,7 @@
     "outOfStockItem": "Out of stock – please remove from cart",
     "giftEarned": "🎁 You've earned a gift: {gift}",
     "giftNext": "Add {amount} more to get: {gift}",
+    "giftProgressLabel": "Progress toward gift threshold",
     "savings": "You saved {amount}",
     "pricesUpdated": "Prices were updated according to active promotions",
     "loadError": "We couldn't refresh prices. Please try again shortly.",

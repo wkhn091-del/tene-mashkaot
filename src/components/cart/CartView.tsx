@@ -222,11 +222,28 @@ export function CartView({ suggestions = [] }: { suggestions?: CartSuggestion[] 
         {gifts?.earned[0] && (
           <p className="rounded-xl bg-gold-400/10 px-3 py-2 text-sm text-gold-100">{t('giftEarned', { gift: localize(gifts.earned[0].gift ?? gifts.earned[0].title, lang) })}</p>
         )}
-        {gifts?.next && (
-          <p className="text-sm text-cream/75">
-            {t('giftNext', { amount: formatPrice(gifts.next.missing, locale), gift: localize(gifts.next.gift ?? gifts.next.title, lang) })}
-          </p>
-        )}
+        {gifts?.next && (() => {
+          const threshold = gifts.next.threshold;
+          const filled = Math.max(0, threshold - gifts.next.missing);
+          const pct = threshold > 0 ? Math.min(100, Math.round((filled / threshold) * 100)) : 0;
+          return (
+            <div className="space-y-2 rounded-xl border border-gold-400/20 bg-wine-950/40 px-3 py-3">
+              <p className="text-sm text-cream/85">
+                {t('giftNext', { amount: formatPrice(gifts.next.missing, locale), gift: localize(gifts.next.gift ?? gifts.next.title, lang) })}
+              </p>
+              <div
+                className="h-2 overflow-hidden rounded-full bg-wine-800"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={pct}
+                aria-label={t('giftProgressLabel')}
+              >
+                <div className="h-full rounded-full bg-gold-400 transition-[width] duration-500" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })()}
         {quote.status === 'error' && (
           <p role="alert" className="text-sm text-red-300">
             {t('loadError')}{' '}
