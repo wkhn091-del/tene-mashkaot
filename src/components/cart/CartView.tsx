@@ -10,6 +10,7 @@ import { SanityImage } from '../shop/SanityImage';
 import { ProductPlaceholder } from '../shop/ProductPlaceholder';
 import { QuickAddButton } from '../shop/QuickAddButton';
 import { ArrowIcon, MinusIcon, PlusIcon, TrashIcon } from '../ui/icons';
+import { MobileStickyBar, MobileStickySpacer } from '../ui/MobileStickyBar';
 import { useCart, type CartItem } from './CartProvider';
 import { useQuote } from './useQuote';
 
@@ -234,7 +235,7 @@ export function CartView({ suggestions = [] }: { suggestions?: CartSuggestion[] 
         <Link
           href="/checkout"
           aria-disabled={blocked}
-          className={cn(buttonStyles.primary, 'w-full py-3.5 text-lg', blocked && 'pointer-events-none opacity-50')}
+          className={cn(buttonStyles.primary, 'hidden w-full py-3.5 text-lg lg:inline-flex', blocked && 'pointer-events-none opacity-50')}
           tabIndex={blocked ? -1 : undefined}
         >
           {t('checkout')}
@@ -244,6 +245,27 @@ export function CartView({ suggestions = [] }: { suggestions?: CartSuggestion[] 
           {t('continue')}
         </Link>
       </aside>
+
+      <MobileStickySpacer />
+      <MobileStickyBar>
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-cream/60">{t('itemsTotal')}</p>
+            <p className="truncate text-lg font-bold text-gold-300">
+              {data ? formatPrice(data.totals.itemsTotal, locale) : '…'}
+            </p>
+          </div>
+          <Link
+            href="/checkout"
+            aria-disabled={blocked}
+            className={cn(buttonStyles.primary, 'min-h-12 shrink-0 px-5 py-3 text-base', blocked && 'pointer-events-none opacity-50')}
+            tabIndex={blocked ? -1 : undefined}
+          >
+            {t('checkout')}
+            <ArrowIcon width={18} height={18} />
+          </Link>
+        </div>
+      </MobileStickyBar>
     </div>
   );
 }

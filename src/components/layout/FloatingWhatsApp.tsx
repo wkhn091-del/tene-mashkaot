@@ -10,6 +10,8 @@ export function FloatingWhatsApp({ number }: { number: string }) {
   const t = useTranslations('common');
   const pathname = usePathname();
   if (pathname.startsWith('/checkout') || pathname.startsWith('/cart')) return null;
+  // Sit above the sticky add-to-cart bar on product pages so the CTA stays tappable.
+  const aboveStickyCta = pathname.startsWith('/product/');
 
   return (
     <a
@@ -17,7 +19,11 @@ export function FloatingWhatsApp({ number }: { number: string }) {
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`${t('whatsapp')} ${t('newTab')}`}
-      className="fixed bottom-4 end-4 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-[#1f9d55] text-white shadow-[0_10px_30px_-8px_rgb(31_157_85/0.7)] ring-2 ring-white/20 transition hover:scale-105"
+      className={
+        aboveStickyCta
+          ? 'fixed bottom-24 end-4 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-[#1f9d55] text-white shadow-[0_10px_30px_-8px_rgb(31_157_85/0.7)] ring-2 ring-white/20 transition hover:scale-105 lg:bottom-4'
+          : 'fixed bottom-4 end-4 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-[#1f9d55] text-white shadow-[0_10px_30px_-8px_rgb(31_157_85/0.7)] ring-2 ring-white/20 transition hover:scale-105'
+      }
     >
       <WhatsAppIcon width={30} height={30} />
     </a>

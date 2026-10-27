@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState } from 'react';
-import { Link } from '@/i18n/navigation';
+import { Link, usePathname } from '@/i18n/navigation';
 import { cn } from '@/lib/cn';
 import { AccessibilityIcon, CloseIcon, MinusIcon, PlusIcon } from '../ui/icons';
 import { useA11y, type A11yPrefs } from './A11yProvider';
@@ -12,8 +12,10 @@ type ToggleKey = keyof Omit<A11yPrefs, 'scale'>;
 export function AccessibilityMenu() {
   const t = useTranslations('a11y');
   const tCommon = useTranslations('common');
+  const pathname = usePathname();
   const { prefs, update, reset } = useA11y();
   const [open, setOpen] = useState(false);
+  const aboveStickyCta = pathname.startsWith('/product/') || pathname.startsWith('/cart');
   const panelId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -46,7 +48,7 @@ export function AccessibilityMenu() {
   ];
 
   return (
-    <div className="fixed bottom-4 start-4 z-[60]">
+    <div className={cn('fixed start-4 z-[60]', aboveStickyCta ? 'bottom-24 lg:bottom-4' : 'bottom-4')}>
       <button
         ref={triggerRef}
         type="button"

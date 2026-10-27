@@ -6,6 +6,7 @@ import { Link } from '@/i18n/navigation';
 import { buttonStyles, cn } from '@/lib/cn';
 import type { BalloonColor, RibbonColor, SanityImage } from '@/lib/types';
 import { useCart } from '../cart/CartProvider';
+import { MobileStickyBar, MobileStickySpacer } from '../ui/MobileStickyBar';
 import { CartIcon, MinusIcon, PlusIcon } from '../ui/icons';
 
 const SWATCH: Record<string, string> = {
@@ -161,33 +162,8 @@ export function AddToCartForm({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center rounded-full border border-gold-400/30" role="group" aria-labelledby={ids.qty}>
-          <span id={ids.qty} className="sr-only">
-            {tCommon('quantity')}
-          </span>
-          <button
-            type="button"
-            onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-            disabled={quantity <= 1}
-            aria-label={tCommon('decrease')}
-            className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-white/5 disabled:opacity-40"
-          >
-            <MinusIcon width={18} height={18} />
-          </button>
-          <output className="w-10 text-center text-lg font-bold tabular-nums" aria-live="polite">
-            {quantity}
-          </output>
-          <button
-            type="button"
-            onClick={() => setQuantity((q) => Math.min(50, q + 1))}
-            disabled={quantity >= 50}
-            aria-label={tCommon('increase')}
-            className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-white/5 disabled:opacity-40"
-          >
-            <PlusIcon width={18} height={18} />
-          </button>
-        </div>
+      <div className="hidden flex-wrap items-center gap-3 lg:flex">
+        <QuantityStepper ids={ids.qty} quantity={quantity} setQuantity={setQuantity} tCommon={tCommon} />
         <button type="submit" className={cn(buttonStyles.primary, 'flex-1 py-3.5 text-lg')}>
           <CartIcon width={22} height={22} />
           {tCommon('addToCart')}
@@ -201,6 +177,61 @@ export function AddToCartForm({
           </Link>
         )}
       </p>
+
+      <MobileStickySpacer />
+      <MobileStickyBar>
+        <div className="mx-auto flex max-w-lg items-center gap-2">
+          <QuantityStepper ids={`${ids.qty}-mobile`} quantity={quantity} setQuantity={setQuantity} tCommon={tCommon} compact />
+          <button type="submit" className={cn(buttonStyles.primary, 'min-h-12 flex-1 py-3 text-base')}>
+            <CartIcon width={20} height={20} />
+            {tCommon('addToCart')}
+          </button>
+        </div>
+      </MobileStickyBar>
     </form>
+  );
+}
+
+function QuantityStepper({
+  ids,
+  quantity,
+  setQuantity,
+  tCommon,
+  compact,
+}: {
+  ids: string;
+  quantity: number;
+  setQuantity: (update: (q: number) => number) => void;
+  tCommon: ReturnType<typeof useTranslations<'common'>>;
+  compact?: boolean;
+}) {
+  const size = compact ? 'h-11 w-11' : 'h-12 w-12';
+  return (
+    <div className="flex items-center rounded-full border border-gold-400/30" role="group" aria-labelledby={ids}>
+      <span id={ids} className="sr-only">
+        {tCommon('quantity')}
+      </span>
+      <button
+        type="button"
+        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+        disabled={quantity <= 1}
+        aria-label={tCommon('decrease')}
+        className={cn('flex items-center justify-center rounded-full hover:bg-white/5 disabled:opacity-40', size)}
+      >
+        <MinusIcon width={18} height={18} />
+      </button>
+      <output className="w-9 text-center text-lg font-bold tabular-nums" aria-live="polite">
+        {quantity}
+      </output>
+      <button
+        type="button"
+        onClick={() => setQuantity((q) => Math.min(50, q + 1))}
+        disabled={quantity >= 50}
+        aria-label={tCommon('increase')}
+        className={cn('flex items-center justify-center rounded-full hover:bg-white/5 disabled:opacity-40', size)}
+      >
+        <PlusIcon width={18} height={18} />
+      </button>
+    </div>
   );
 }
