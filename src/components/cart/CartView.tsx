@@ -131,6 +131,9 @@ export function CartView({ suggestions = [] }: { suggestions?: CartSuggestion[] 
         <Link href="/shop" className={cn(buttonStyles.primary, 'mt-6')}>
           {t('emptyCta')}
         </Link>
+        <Link href="/orders" className="mt-4 block text-sm font-semibold text-gold-200 underline underline-offset-4">
+          {t('trackOrder')}
+        </Link>
       </div>
     );
   }

@@ -168,6 +168,7 @@
     "title": "Your cart",
     "empty": "Your cart is empty",
     "emptyCta": "Browse products",
+    "trackOrder": "Track a previous order",
     "itemsTotal": "Subtotal",
     "checkout": "Checkout",
     "continue": "Continue shopping",
@@ -271,6 +272,7 @@
   },
   "orders": {
     "title": "Order tracking",
+    "shortTitle": "My order",
     "subtitle": "Enter your order number and phone — no account needed",
     "orderNumber": "Order number",
     "phone": "Phone used on the order",

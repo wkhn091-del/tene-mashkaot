@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/navigation';
 import { formatPhone } from '@/lib/format';
 import type { SiteSettings } from '@/lib/types';
 import { whatsappLink } from '@/lib/whatsapp';
@@ -12,6 +13,7 @@ import { NavLinks } from './NavLinks';
 
 export async function Header({ locale, settings }: { locale: string; settings: SiteSettings }) {
   const t = await getTranslations({ locale, namespace: 'common' });
+  const tOrders = await getTranslations({ locale, namespace: 'orders' });
   const phone = formatPhone(settings.phone);
   const phoneHref = `tel:${settings.phone.replace(/\D/g, '')}`;
 
@@ -32,6 +34,12 @@ export async function Header({ locale, settings }: { locale: string; settings: S
             <PhoneIcon width={18} height={18} />
             <span dir="ltr">{phone}</span>
           </a>
+          <Link
+            href="/orders"
+            className="hidden rounded-full px-3 py-2 text-sm font-semibold text-cream/80 transition hover:bg-white/5 hover:text-gold-200 md:inline-flex"
+          >
+            {tOrders('shortTitle')}
+          </Link>
           <LanguageSwitcher className="hidden rounded-full border border-gold-400/40 px-3 py-1.5 text-sm font-semibold text-gold-200 transition hover:bg-gold-400/10 sm:inline-flex" />
           <CartButton />
         </div>

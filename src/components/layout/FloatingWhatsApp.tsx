@@ -9,7 +9,7 @@ import { WhatsAppIcon } from '../ui/icons';
 export function FloatingWhatsApp({ number }: { number: string }) {
   const t = useTranslations('common');
   const pathname = usePathname();
-  if (pathname.startsWith('/checkout') || pathname.startsWith('/cart')) return null;
+  if (pathname.startsWith('/checkout') || pathname.startsWith('/cart') || pathname.startsWith('/orders')) return null;
   // Sit above the sticky add-to-cart bar on product pages so the CTA stays tappable.
   const aboveStickyCta = pathname.startsWith('/product/');
 
