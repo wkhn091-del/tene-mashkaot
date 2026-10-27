@@ -16,6 +16,8 @@ import { absoluteUrl, alternatesFor, jsonLd } from '@/lib/seo';
 import { imageUrl } from '@/sanity/lib/image';
 import { headers } from 'next/headers';
 import { TrackOnMount } from '@/components/analytics/TrackOnMount';
+import { RecentlyViewed } from '@/components/shop/RecentlyViewed';
+import { RememberProductView } from '@/components/shop/RememberProductView';
 
 
 type Params = Promise<{ locale: string; slug: string }>;
@@ -224,6 +226,15 @@ export default async function ProductPage({ params }: { params: Params }) {
           <ProductGrid products={related} promotions={promotions} locale={locale} />
         </section>
       )}
+
+      <RecentlyViewed excludeId={product._id} />
+
+      <RememberProductView
+        id={product._id}
+        slug={product.slug}
+        title={title}
+        imageUrl={imageUrl(images[0], 400) || undefined}
+      />
 
       <TrackOnMount
         event={{

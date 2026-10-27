@@ -110,7 +110,8 @@
     "sortPriceAsc": "Price: low to high",
     "sortPriceDesc": "Price: high to low",
     "noResults": "No products found for \"{query}\"",
-    "clearSearch": "Clear search"
+    "clearSearch": "Clear search",
+    "recentlyViewed": "Recently viewed"
   },
   "product": {
     "sale": "Sale",

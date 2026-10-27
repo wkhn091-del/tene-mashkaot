@@ -1,8 +1,10 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useDeferredValue, useMemo, useState, type ReactNode } from 'react';
+import { useDeferredValue, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { readLastSearch, subscribeMemory, writeLastSearch } from '@/lib/customer-memory';
 import { matchesSearch } from '@/lib/search';
+import { RecentlyViewed } from './RecentlyViewed';
 
 export interface BrowserEntry {
   id: string;
@@ -19,9 +21,17 @@ const fieldClass =
 
 export function ProductBrowser({ entries }: { entries: BrowserEntry[] }) {
   const t = useTranslations('shop');
-  const [query, setQuery] = useState('');
+  const remembered = useSyncExternalStore(subscribeMemory, readLastSearch, () => '');
+  // null = still following the remembered query; once the shopper types, we own the field.
+  const [queryOverride, setQueryOverride] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>('recommended');
+  const query = queryOverride ?? remembered;
   const deferredQuery = useDeferredValue(query);
+
+  const setQuery = (value: string) => {
+    setQueryOverride(value);
+    writeLastSearch(value);
+  };
 
   const visible = useMemo(() => {
     const found = entries.filter((entry) => matchesSearch(entry.text, deferredQuery));
@@ -78,6 +88,8 @@ export function ProductBrowser({ entries }: { entries: BrowserEntry[] }) {
           </button>
         </div>
       )}
+
+      <RecentlyViewed />
     </>
   );
 }

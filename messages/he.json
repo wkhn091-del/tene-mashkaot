@@ -110,7 +110,8 @@
     "sortPriceAsc": "מחיר: מהנמוך לגבוה",
     "sortPriceDesc": "מחיר: מהגבוה לנמוך",
     "noResults": "לא מצאנו מוצרים עבור \"{query}\"",
-    "clearSearch": "ניקוי החיפוש"
+    "clearSearch": "ניקוי החיפוש",
+    "recentlyViewed": "צפיתם לאחרונה"
   },
   "product": {
     "sale": "מבצע",

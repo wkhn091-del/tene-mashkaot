@@ -222,6 +222,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
           list: [
             'אישור גיל (עוגייה בשם tene_age_ok) – כדי שלא תתבקשו לאשר את גילכם בכל מעבר בין עמודים. נמחקת כשסוגרים את הדפדפן, ולכן נשאל שוב בכל כניסה חדשה.',
             'סל הקניות (אחסון מקומי) – כדי שהמוצרים יישמרו גם אם תסגרו את הדפדפן.',
+            'חיפוש אחרון ומוצרים שנצפו (אחסון מקומי) – כדי שהחנות תזכור אתכם בביקור הבא. נשמרים במכשיר בלבד.',
             'הגדרות נגישות (אחסון מקומי) – כדי שההגדרות שבחרתם יישמרו.',
             'עוגיית שפה – לזכירת השפה המועדפת.',
             'אימות Cloudflare Turnstile בטפסים – להגנה מפני רובוטים.',
@@ -239,7 +240,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
         },
         {
           heading: 'ניהול העוגיות',
-          paragraphs: ['ניתן לשנות או לבטל את ההסכמה בכל עת דרך "הגדרות עוגיות" בתחתית האתר. ביטול מוחק את עוגיות המדידה. אפשר גם למחוק עוגיות ונתוני אתרים דרך הגדרות הדפדפן; מחיקתם תאפס את סל הקניות, את הגדרות הנגישות ואת אישור הגיל.'],
+          paragraphs: ['ניתן לשנות או לבטל את ההסכמה בכל עת דרך "הגדרות עוגיות" בתחתית האתר. ביטול מוחק את עוגיות המדידה. אפשר גם למחוק עוגיות ונתוני אתרים דרך הגדרות הדפדפן; מחיקתם תאפס את סל הקניות, את החיפוש האחרון, את המוצרים שנצפו, את הגדרות הנגישות ואת אישור הגיל.'],
         },
       ],
     },
@@ -301,7 +302,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
           list: [
             'Details you provide when ordering or contacting us: name, phone, email (optional), delivery address, notes and order contents.',
             'Basic technical data: IP address (for security and abuse prevention), browser type and aggregated anonymous usage data.',
-            'Preferences stored only on your device: cart contents, accessibility settings and age confirmation.',
+            'Preferences stored only on your device: cart contents, last search, recently viewed products, accessibility settings and age confirmation.',
           ],
         },
         {
@@ -384,6 +385,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
           list: [
             'Age confirmation (cookie named tene_age_ok) – so you are not asked on every page. Deleted when you close the browser, so you are asked again on every new visit.',
             'Shopping cart (local storage) – so your items are kept if you close the browser.',
+            'Last search and recently viewed products (local storage) – so the shop remembers you on the next visit. Kept on your device only.',
             'Accessibility settings (local storage) – so your chosen settings are remembered.',
             'Language cookie – to remember your preferred language.',
             'Cloudflare Turnstile verification on forms – for bot protection.',
@@ -394,7 +396,7 @@ export const LEGAL_CONTENT: Record<'he' | 'en', Record<LegalSlug, LegalDocument>
             'Only with your consent – Marketing: Meta Pixel (_fbp cookie) to measure Facebook and Instagram ads.',
           ],
         },
-        { heading: 'Managing cookies', paragraphs: ['You can delete cookies and site data in your browser settings. Doing so resets your cart, accessibility settings and age confirmation.'] },
+        { heading: 'Managing cookies', paragraphs: ['You can delete cookies and site data in your browser settings. Doing so resets your cart, last search, recently viewed products, accessibility settings and age confirmation.'] },
       ],
     },
   },
