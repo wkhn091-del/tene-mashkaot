@@ -22,20 +22,20 @@ export function Hero({
   const t = useTranslations('hero');
   const tHome = useTranslations('home');
   const tCommon = useTranslations('common');
-  const { wineAisle: hero, giftBasket } = STORE_PHOTOS;
+  const { wineCounter: backdrop, wineAisle, giftBasket } = STORE_PHOTOS;
 
   return (
     <section aria-labelledby="hero-title" className="relative isolate flex min-h-[calc(100svh-4.5rem)] items-center overflow-hidden">
       <Image
-        src={hero.src}
+        src={backdrop.src}
         alt=""
         fill
         preload
         sizes="100vw"
-        className="-z-20 object-cover object-[50%_45%] lg:scale-110 lg:blur-[6px]"
+        className="-z-20 scale-105 object-cover object-[42%_40%]"
       />
-      <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-wine-950 via-wine-950/70 to-wine-950/40" />
-      <div aria-hidden className="absolute inset-0 -z-10 hidden bg-gradient-to-r from-wine-950/95 via-wine-950/70 to-wine-950/30 lg:block rtl:bg-gradient-to-l" />
+      <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-wine-950 via-wine-950/55 to-wine-950/25" />
+      <div aria-hidden className="absolute inset-0 -z-10 hidden bg-gradient-to-r from-wine-950/92 via-wine-950/55 to-wine-950/15 lg:block rtl:bg-gradient-to-l" />
       <RisingBubbles count={12} />
 
       <div className="mx-auto grid w-full max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.1fr_1fr]">
@@ -66,11 +66,11 @@ export function Hero({
         </div>
 
         <div aria-hidden className="relative hidden h-[68svh] max-h-[640px] lg:block">
-          <div className="absolute inset-y-0 end-10 w-[58%] -rotate-2 overflow-hidden rounded-[2rem] border border-gold-400/40 shadow-[0_30px_80px_rgb(0_0_0/0.6)]">
-            <Image src={hero.src} alt="" fill loading="eager" sizes="30vw" className="object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-wine-950/50 via-transparent to-transparent" />
+          <div className="absolute inset-y-0 end-10 w-[58%] -rotate-2 overflow-hidden rounded-[2rem] border border-gold-400/40 shadow-[0_30px_80px_rgb(0_0_0/0.65)] ring-1 ring-cream/10">
+            <Image src={wineAisle.src} alt="" fill loading="eager" sizes="30vw" className="object-cover object-[50%_40%]" />
+            <div className="absolute inset-0 bg-gradient-to-t from-wine-950/45 via-transparent to-transparent" />
           </div>
-          <div className="absolute bottom-6 start-0 w-[42%] rotate-3 overflow-hidden rounded-[1.5rem] border border-gold-400/40 shadow-[0_24px_60px_rgb(0_0_0/0.65)]">
+          <div className="absolute bottom-6 start-0 w-[42%] rotate-3 overflow-hidden rounded-[1.5rem] border border-gold-400/40 shadow-[0_24px_60px_rgb(0_0_0/0.7)] ring-1 ring-cream/10">
             <Image
               src={giftBasket.src}
               alt=""
