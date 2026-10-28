@@ -9,6 +9,9 @@ const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+  { key: 'Cross-Origin-Resource-Policy', value: 'same-site' },
   {
     key: 'Permissions-Policy',
     value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
@@ -32,6 +35,7 @@ const studioCsp = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  productionBrowserSourceMaps: false,
   turbopack: { root: process.cwd() },
   reactStrictMode: true,
   images: {
@@ -43,6 +47,7 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['@react-three/drei', 'motion'],
   },
   async headers() {
+    const privateNoStore = [{ key: 'Cache-Control', value: 'private, no-store, max-age=0' }];
     return [
       { source: '/:path*', headers: securityHeaders },
       {
@@ -65,6 +70,15 @@ const nextConfig: NextConfig = {
         source: '/models/:path*',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=604800, stale-while-revalidate=86400' }],
       },
+      // Order lookup / confirmation — never shared CDN cache (Script 5 §1.46 / 3.12).
+      { source: '/orders', headers: privateNoStore },
+      { source: '/:locale/orders', headers: privateNoStore },
+      { source: '/order/:path*', headers: privateNoStore },
+      { source: '/:locale/order/:path*', headers: privateNoStore },
+      { source: '/checkout', headers: privateNoStore },
+      { source: '/:locale/checkout', headers: privateNoStore },
+      { source: '/cart', headers: privateNoStore },
+      { source: '/:locale/cart', headers: privateNoStore },
     ];
   },
 };

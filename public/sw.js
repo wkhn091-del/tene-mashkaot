@@ -21,7 +21,7 @@ const NETWORK_TIMEOUT_MS = 8000;
 
 const BYPASS = [/^\/api\//, /^\/studio/, /^\/monitoring/, /^\/_vercel/];
 // Live pages: always from the network and never stored – offline they get the offline page instead.
-const LIVE_PAGES = /\/(cart|checkout|order)(\/|$)/;
+const LIVE_PAGES = /\/(cart|checkout|orders?|order)(\/|$)/;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
