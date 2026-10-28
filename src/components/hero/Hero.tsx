@@ -22,23 +22,23 @@ export function Hero({
   const t = useTranslations('hero');
   const tHome = useTranslations('home');
   const tCommon = useTranslations('common');
-  const { wineCounter: backdrop, wineAisle, giftBasket } = STORE_PHOTOS;
+  const { wineCounter: backdrop, wineAisle, daatZkenim: featureShot } = STORE_PHOTOS;
 
   return (
-    <section aria-labelledby="hero-title" className="relative isolate flex min-h-[calc(100svh-4.5rem)] items-center overflow-hidden">
+    <section aria-labelledby="hero-title" className="relative isolate flex min-h-[calc(100svh-4.5rem)] items-center overflow-x-clip overflow-y-visible">
       <Image
         src={backdrop.src}
         alt=""
         fill
         preload
         sizes="100vw"
-        className="-z-20 scale-105 object-cover object-[42%_40%]"
+        className="-z-20 scale-105 object-cover object-[42%_35%]"
       />
-      <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-wine-950 via-wine-950/55 to-wine-950/25" />
-      <div aria-hidden className="absolute inset-0 -z-10 hidden bg-gradient-to-r from-wine-950/92 via-wine-950/55 to-wine-950/15 lg:block rtl:bg-gradient-to-l" />
+      <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-wine-950/90 via-wine-950/45 to-wine-950/20" />
+      <div aria-hidden className="absolute inset-0 -z-10 hidden bg-gradient-to-r from-wine-950/90 via-wine-950/45 to-transparent lg:block rtl:bg-gradient-to-l" />
       <RisingBubbles count={12} />
 
-      <div className="mx-auto grid w-full max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.1fr_1fr]">
+      <div className="mx-auto grid w-full max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:pb-24">
         <div className="text-center lg:text-start">
           <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-gold-400/40 bg-wine-950/60 px-4 py-1.5 text-sm font-semibold tracking-wide text-gold-200 backdrop-blur">
             <span aria-hidden className={cn('h-2.5 w-2.5 rounded-full', isOpen ? 'animate-pulse bg-[#4ade80]' : 'bg-cream/40')} />
@@ -66,19 +66,12 @@ export function Hero({
         </div>
 
         <div aria-hidden className="relative hidden h-[68svh] max-h-[640px] lg:block">
-          <div className="absolute inset-y-0 end-10 w-[58%] -rotate-2 overflow-hidden rounded-[2rem] border border-gold-400/40 shadow-[0_30px_80px_rgb(0_0_0/0.65)] ring-1 ring-cream/10">
+          <div className="absolute inset-y-2 end-10 w-[58%] -rotate-2 overflow-hidden rounded-[2rem] border border-gold-400/40 shadow-[0_30px_80px_rgb(0_0_0/0.65)] ring-1 ring-cream/10">
             <Image src={wineAisle.src} alt="" fill loading="eager" sizes="30vw" className="object-cover object-[50%_40%]" />
-            <div className="absolute inset-0 bg-gradient-to-t from-wine-950/45 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-wine-950/35 via-transparent to-transparent" />
           </div>
-          <div className="absolute bottom-6 start-0 w-[42%] rotate-3 overflow-hidden rounded-[1.5rem] border border-gold-400/40 shadow-[0_24px_60px_rgb(0_0_0/0.7)] ring-1 ring-cream/10">
-            <Image
-              src={giftBasket.src}
-              alt=""
-              width={giftBasket.width}
-              height={giftBasket.height}
-              sizes="20vw"
-              className="aspect-[3/4] w-full object-cover"
-            />
+          <div className="absolute bottom-2 start-0 aspect-[3/4] w-[44%] rotate-2 overflow-hidden rounded-[1.5rem] border border-gold-400/40 bg-wine-950 shadow-[0_24px_60px_rgb(0_0_0/0.7)] ring-1 ring-cream/10">
+            <Image src={featureShot.src} alt="" fill sizes="22vw" className="object-cover object-[50%_30%]" />
           </div>
           <div className="absolute end-0 top-8 flex items-center gap-2 rounded-full border border-gold-400/40 bg-wine-950/80 px-4 py-2 text-sm font-bold text-gold-200 shadow-lg backdrop-blur">
             <TruckIcon width={18} height={18} className="text-gold-400" />
